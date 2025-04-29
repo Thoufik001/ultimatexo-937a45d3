@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameProvider } from '@/context/GameContext';
 import { ThemeProvider } from '@/hooks/use-theme';
@@ -9,12 +8,13 @@ import WelcomeModal from '@/components/WelcomeModal';
 import SettingsDrawer from '@/components/SettingsDrawer';
 import Confetti from '@/components/Confetti';
 import { useGame } from '@/context/GameContext';
-
 const Game: React.FC = () => {
-  const { state, resumeGame } = useGame();
+  const {
+    state,
+    resumeGame
+  } = useGame();
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  
   useEffect(() => {
     if (state.gameStatus === 'game-over' || state.gameStatus === 'paused') {
       setShowModal(true);
@@ -22,20 +22,16 @@ const Game: React.FC = () => {
       setShowModal(false);
     }
   }, [state.gameStatus]);
-  
   const handleCloseModal = () => {
     if (state.gameStatus === 'paused') {
       resumeGame();
     }
     setShowModal(false);
   };
-
   const handleOpenSettings = () => {
     setShowSettings(true);
   };
-  
-  return (
-    <>
+  return <>
       <div className="flex flex-col lg:flex-row gap-4 w-full max-w-7xl mx-auto">
         {/* Left Column - Controls and Info */}
         <div className="w-full lg:w-1/3 flex flex-col gap-4">
@@ -60,20 +56,16 @@ const Game: React.FC = () => {
       <GameModal open={showModal} onClose={handleCloseModal} />
       <SettingsDrawer open={showSettings} onClose={() => setShowSettings(false)} />
       <Confetti active={state.showConfetti} />
-    </>
-  );
+    </>;
 };
-
 const Index: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
-  
-  return (
-    <ThemeProvider>
+  return <ThemeProvider>
       <GameProvider>
         <div className="min-h-screen flex flex-col p-4 bg-background">
           <header className="text-center my-6">
             <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">Ultimate XO</h1>
-            <p className="text-muted-foreground font-inter">Ultimate Tic-Tac-Toe with a strategic twist</p>
+            <p className="text-muted-foreground font-inter">Classic Tic-Tac-Toe with a strategic twist</p>
           </header>
           
           <main className="flex-grow">
@@ -87,8 +79,6 @@ const Index: React.FC = () => {
           </footer>
         </div>
       </GameProvider>
-    </ThemeProvider>
-  );
+    </ThemeProvider>;
 };
-
 export default Index;
