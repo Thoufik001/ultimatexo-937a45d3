@@ -24,9 +24,9 @@ const MiniBoard: React.FC<MiniBoardProps> = ({ boardIndex, playerSymbols }) => {
   };
   
   const boardClasses = cn(
-    'mini-board',
-    isActive && 'active',
-    !isActive && 'inactive',
+    'mini-board relative grid grid-cols-3 gap-1 aspect-square w-full',
+    isActive && 'active ring-2 ring-primary/50 shadow-lg',
+    !isActive && 'inactive opacity-80',
     boardWinner === 'X' && 'won-x',
     boardWinner === 'O' && 'won-o',
   );
@@ -45,7 +45,7 @@ const MiniBoard: React.FC<MiniBoardProps> = ({ boardIndex, playerSymbols }) => {
       ))}
       
       {boardWinner && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-sm">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-sm rounded-md">
           <span className={`text-4xl font-bold ${boardWinner === 'X' ? 'text-game-x' : 'text-game-o'} animate-fade-in`}>
             {playerSymbols[boardWinner]}
           </span>

@@ -25,7 +25,6 @@ const Game: React.FC = () => {
   
   const handleCloseModal = () => {
     if (state.gameStatus === 'paused') {
-      // Use the resumeGame function from context instead of calling dispatch directly
       resumeGame();
     }
     setShowModal(false);
@@ -37,10 +36,27 @@ const Game: React.FC = () => {
   
   return (
     <>
-      <GameControls onOpenSettings={handleOpenSettings} />
-      <div className="py-4 px-2">
-        <GameBoard />
+      <div className="flex flex-col lg:flex-row gap-4 w-full max-w-7xl mx-auto">
+        {/* Left Column - Controls and Info */}
+        <div className="w-full lg:w-1/3 flex flex-col gap-4">
+          <GameControls onOpenSettings={handleOpenSettings} />
+          <div className="glass-card p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
+            <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
+              <li>Win three mini-boards in a row to win the game</li>
+              <li>Your move determines where your opponent must play next</li>
+              <li>If sent to a completed board, you may play anywhere</li>
+              <li>Watch the timer - if it runs out, you lose your turn</li>
+            </ul>
+          </div>
+        </div>
+        
+        {/* Right Column - Game Board */}
+        <div className="w-full lg:w-2/3">
+          <GameBoard />
+        </div>
       </div>
+      
       <GameModal open={showModal} onClose={handleCloseModal} />
       <SettingsDrawer open={showSettings} onClose={() => setShowSettings(false)} />
       <Confetti active={state.showConfetti} />
