@@ -14,7 +14,7 @@ const Cell: React.FC<CellProps> = ({ value, onClick, isActive, boardWon, playerS
   return (
     <button 
       className={cn(
-        'cell aspect-square w-full flex items-center justify-center text-2xl font-bold rounded-md',
+        'cell aspect-square w-full flex items-center justify-center text-3xl font-bold rounded-md',
         value === 'X' && 'text-game-x',
         value === 'O' && 'text-game-o',
         isActive && !boardWon && 'hover:bg-primary/10 hover-scale',

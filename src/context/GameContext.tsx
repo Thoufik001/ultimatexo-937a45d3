@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
-import { useToast } from "@/hooks/use-toast";
 
 type Player = 'X' | 'O' | null;
 type Board = Array<Player>;
@@ -106,10 +105,6 @@ const playSound = (sound: 'move' | 'win' | 'timeWarning' | 'gameOver', isMuted: 
   
   // In a real implementation, we would play actual sounds here
   console.log(`Playing sound: ${sound}`);
-  
-  // You could create audio elements and play them here:
-  // const audio = new Audio(`/sounds/${sound}.mp3`);
-  // audio.play();
 };
 
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -322,7 +317,6 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const { toast } = useToast();
 
   // Load game state from localStorage when component mounts
   useEffect(() => {
@@ -337,9 +331,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             Object.keys(parsedState).forEach(key => {
               (state as any)[key] = parsedState[key];
             });
-            toast({
-              title: "Game Restored",
-              description: "Your previous game has been loaded.",
+            toast("Game Restored", {
+              description: "Your previous game has been loaded."
             });
           }
         }
@@ -372,11 +365,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Show turn notification
   useEffect(() => {
     if (state.gameStatus === 'playing' && state.moveHistory.length > 0) {
-      toast({
-        title: `Your Turn: ${state.playerSymbols[state.currentPlayer]}`,
+      toast(`Your Turn: ${state.playerSymbols[state.currentPlayer]}`, {
         description: state.nextBoardIndex !== null 
           ? `Play in board ${state.nextBoardIndex + 1}`
-          : "You can play in any available board",
+          : "You can play in any available board"
       });
     }
   }, [state.currentPlayer, state.gameStatus]);
@@ -385,14 +377,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (state.gameStatus === 'game-over') {
       if (state.winner) {
-        toast({
-          title: `Congratulations ${state.playerSymbols[state.winner]}! You Win!`,
-          description: "You've won the game!",
+        toast(`Congratulations ${state.playerSymbols[state.winner]}! You Win!`, {
+          description: "You've won the game!"
         });
       } else {
-        toast({
-          title: "It's a Tie!",
-          description: "Well played by both sides.",
+        toast("It's a Tie!", {
+          description: "Well played by both sides."
         });
       }
     }

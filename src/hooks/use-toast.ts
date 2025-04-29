@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 
 import type {
@@ -168,7 +170,17 @@ function toast({ ...props }: Toast) {
   }
 }
 
-function useToast() {
+const ToastContext = React.createContext<{
+  toasts: ToasterToast[]
+  toast: typeof toast
+  dismiss: (toastId?: string) => void
+} | null>(null)
+
+export function ToastProvider({
+  children,
+}: {
+  children: React.ReactNode
+}): JSX.Element {
   const [state, setState] = React.useState<State>(memoryState)
 
   React.useEffect(() => {
@@ -181,11 +193,32 @@ function useToast() {
     }
   }, [state])
 
-  return {
-    ...state,
-    toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
-  }
+  return (
+    <ToastContext.Provider
+      value={{
+        toasts: state.toasts,
+        toast,
+        dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+      }}
+    >
+      {children}
+    </ToastContext.Provider>
+  )
 }
 
-export { useToast, toast }
+export function useToast() {
+  const context = React.useContext(ToastContext)
+  
+  if (!context) {
+    // This fallback ensures we don't crash when the hook is used outside a provider
+    return {
+      toasts: [],
+      toast,
+      dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    }
+  }
+  
+  return context
+}
+
+export { toast }
