@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { GameProvider } from '@/context/GameContext';
+import { ThemeProvider } from '@/hooks/use-theme';
 import GameBoard from '@/components/GameBoard';
 import GameControls from '@/components/GameControls';
 import GameModal from '@/components/GameModal';
@@ -66,33 +67,27 @@ const Game: React.FC = () => {
 const Index: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   
-  // Check localStorage on component mount to see if we should show the welcome modal
-  useEffect(() => {
-    const hideWelcome = localStorage.getItem('ultimateXO_hideWelcome');
-    if (hideWelcome === 'true') {
-      setShowWelcome(false);
-    }
-  }, []);
-  
   return (
-    <GameProvider>
-      <div className="min-h-screen flex flex-col p-4 bg-background">
-        <header className="text-center my-6">
-          <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">Ultimate XO</h1>
-          <p className="text-muted-foreground font-inter">Ultimate Tic-Tac-Toe with a strategic twist</p>
-        </header>
-        
-        <main className="flex-grow">
-          <Game />
-        </main>
-        
-        <WelcomeModal open={showWelcome} onClose={() => setShowWelcome(false)} />
-        
-        <footer className="text-center py-4 mt-8 text-sm text-muted-foreground font-inter">
-          <p>© 2025 Ultimate XO - A strategic board game</p>
-        </footer>
-      </div>
-    </GameProvider>
+    <ThemeProvider>
+      <GameProvider>
+        <div className="min-h-screen flex flex-col p-4 bg-background">
+          <header className="text-center my-6">
+            <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">Ultimate XO</h1>
+            <p className="text-muted-foreground font-inter">Ultimate Tic-Tac-Toe with a strategic twist</p>
+          </header>
+          
+          <main className="flex-grow">
+            <Game />
+          </main>
+          
+          <WelcomeModal open={showWelcome} onClose={() => setShowWelcome(false)} />
+          
+          <footer className="text-center py-4 mt-8 text-sm text-muted-foreground font-inter">
+            <p>© 2025 Ultimate XO - A strategic board game</p>
+          </footer>
+        </div>
+      </GameProvider>
+    </ThemeProvider>
   );
 };
 

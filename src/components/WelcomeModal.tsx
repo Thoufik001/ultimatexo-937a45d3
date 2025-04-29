@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,6 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useGame } from '@/context/GameContext';
 import { Scroll } from 'lucide-react';
 
@@ -19,17 +18,8 @@ interface WelcomeModalProps {
 }
 
 const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose }) => {
-  const [dontShowAgain, setDontShowAgain] = useState(false);
-  
-  const handleClose = () => {
-    if (dontShowAgain) {
-      localStorage.setItem('ultimateXO_hideWelcome', 'true');
-    }
-    onClose();
-  };
-  
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg glass-modal">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-poppins flex justify-center items-center gap-2">
@@ -68,25 +58,11 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose }) => {
           </div>
         </div>
         
-        <div className="flex items-center space-x-2 mb-4">
-          <Checkbox 
-            id="dontShowAgain" 
-            checked={dontShowAgain} 
-            onCheckedChange={(checked) => setDontShowAgain(checked === true)}
-          />
-          <label
-            htmlFor="dontShowAgain"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            Don't show this again
-          </label>
-        </div>
-        
         <DialogFooter className="flex sm:justify-between gap-3">
-          <Button variant="outline" onClick={handleClose} className="w-full">
+          <Button variant="outline" onClick={onClose} className="w-full">
             Skip
           </Button>
-          <Button onClick={handleClose} className="w-full">
+          <Button onClick={onClose} className="w-full">
             Let's Play!
           </Button>
         </DialogFooter>
