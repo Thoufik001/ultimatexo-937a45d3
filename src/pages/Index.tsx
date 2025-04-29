@@ -41,7 +41,7 @@ const Game: React.FC = () => {
             <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
               <li>Win three mini-boards in a row to win the game</li>
               <li>Your move determines where your opponent must play next</li>
-              <li>If sent to a completed board, you may play anywhere</li>
+              <li>If sent to a completed board, you may play anywhere on the grid</li>
               <li>Watch the timer - if it runs out, you lose your turn</li>
             </ul>
           </div>
