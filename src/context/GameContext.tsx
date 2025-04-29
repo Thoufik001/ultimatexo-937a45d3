@@ -369,18 +369,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(timer);
   }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled]);
 
-  // Show turn notification
-  useEffect(() => {
-    if (state.gameStatus === 'playing' && state.moveHistory.length > 0) {
-      toast({
-        title: `Your Turn: ${state.playerSymbols[state.currentPlayer]}`,
-        description: state.nextBoardIndex !== null 
-          ? `Play in board ${state.nextBoardIndex + 1}`
-          : "You can play in any available board",
-      });
-    }
-  }, [state.currentPlayer, state.gameStatus]);
-
   // Game over notification
   useEffect(() => {
     if (state.gameStatus === 'game-over') {
