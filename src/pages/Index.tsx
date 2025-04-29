@@ -67,6 +67,14 @@ const Game: React.FC = () => {
 const Index: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   
+  // Check localStorage on component mount to see if we should show the welcome modal
+  useEffect(() => {
+    const hideWelcome = localStorage.getItem('ultimateXO_hideWelcome');
+    if (hideWelcome === 'true') {
+      setShowWelcome(false);
+    }
+  }, []);
+  
   return (
     <ThemeProvider>
       <GameProvider>
