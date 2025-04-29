@@ -95,9 +95,29 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  
+  .text-gradient {
+    @apply bg-gradient-to-br from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent;
+  }
 }
 
 @layer components {
+  .glass-card {
+    @apply bg-background/60 backdrop-blur-md border border-border/40 rounded-lg shadow-lg;
+  }
+  
+  .glass-board {
+    @apply bg-background/40 backdrop-blur-sm border border-border/30 shadow-lg;
+  }
+  
+  .glass-modal {
+    @apply bg-background/80 backdrop-blur-md border border-border/50 shadow-xl;
+  }
+  
+  .glass-drawer {
+    @apply bg-background/80 backdrop-blur-md border-t border-border/50 shadow-lg;
+  }
+  
   .cell {
     @apply w-full aspect-square flex items-center justify-center text-2xl sm:text-3xl font-bold transition-all duration-200 border border-border/50;
   }
@@ -132,5 +152,9 @@
   
   .game-button {
     @apply px-4 py-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1;
+  }
+  
+  .hover-scale {
+    @apply transition-transform duration-200 hover:scale-105;
   }
 }

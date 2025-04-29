@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +20,14 @@ interface GameState {
   moveHistory: Array<{ boards: Boards, boardStatus: BoardStatus, boardIndex: number, cellIndex: number }>;
   currentMoveIndex: number;
   showConfetti: boolean;
+  timerEnabled: boolean;
+  playerSymbols: Record<string, string>;
+}
+
+interface GameSettings {
+  turnTimeLimit: number;
+  timerEnabled: boolean;
+  playerSymbols: Record<string, string>;
 }
 
 type GameAction = 
@@ -33,11 +40,11 @@ type GameAction =
   | { type: 'TOGGLE_SOUND' }
   | { type: 'TICK_TIMER' }
   | { type: 'TIME_UP' }
-  | { type: 'HIDE_CONFETTI' };
+  | { type: 'HIDE_CONFETTI' }
+  | { type: 'UPDATE_SETTINGS'; settings: GameSettings };
 
 interface GameContextType {
   state: GameState;
-  dispatch: React.Dispatch<GameAction>;
   makeMove: (boardIndex: number, cellIndex: number) => void;
   undoMove: () => void;
   redoMove: () => void;
@@ -45,6 +52,7 @@ interface GameContextType {
   pauseGame: () => void;
   resumeGame: () => void;
   toggleSound: () => void;
+  updateSettings: (settings: GameSettings) => void;
 }
 
 const initialBoard = Array(9).fill(null);
@@ -63,7 +71,9 @@ const initialState: GameState = {
   isMuted: false,
   moveHistory: [],
   currentMoveIndex: -1,
-  showConfetti: false
+  showConfetti: false,
+  timerEnabled: true,
+  playerSymbols: { 'X': 'X', 'O': 'O' }
 };
 
 const checkWinner = (board: Board): Player => {
@@ -220,7 +230,10 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       playSound('move', state.isMuted);
       return {
         ...initialState,
-        isMuted: state.isMuted
+        isMuted: state.isMuted,
+        turnTimeLimit: state.turnTimeLimit,
+        timerEnabled: state.timerEnabled,
+        playerSymbols: state.playerSymbols
       };
     }
     
@@ -252,7 +265,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'TICK_TIMER': {
-      if (state.gameStatus !== 'playing' || state.turnTimeRemaining <= 0) {
+      if (state.gameStatus !== 'playing' || !state.timerEnabled || state.turnTimeRemaining <= 0) {
         return state;
       }
       
@@ -270,7 +283,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'TIME_UP': {
-      if (state.gameStatus !== 'playing') {
+      if (state.gameStatus !== 'playing' || !state.timerEnabled) {
         return state;
       }
       
@@ -287,6 +300,16 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         showConfetti: false
+      };
+    }
+    
+    case 'UPDATE_SETTINGS': {
+      return {
+        ...state,
+        turnTimeLimit: action.settings.turnTimeLimit,
+        turnTimeRemaining: action.settings.turnTimeLimit, // Reset current time
+        timerEnabled: action.settings.timerEnabled,
+        playerSymbols: action.settings.playerSymbols
       };
     }
     
@@ -333,7 +356,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Timer effect
   useEffect(() => {
-    if (state.gameStatus !== 'playing') return;
+    if (state.gameStatus !== 'playing' || !state.timerEnabled) return;
 
     const timer = setInterval(() => {
       dispatch({ type: 'TICK_TIMER' });
@@ -344,13 +367,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return () => clearInterval(timer);
-  }, [state.gameStatus, state.turnTimeRemaining]);
+  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled]);
 
   // Show turn notification
   useEffect(() => {
     if (state.gameStatus === 'playing' && state.moveHistory.length > 0) {
       toast({
-        title: `Your Turn: ${state.currentPlayer}`,
+        title: `Your Turn: ${state.playerSymbols[state.currentPlayer]}`,
         description: state.nextBoardIndex !== null 
           ? `Play in board ${state.nextBoardIndex + 1}`
           : "You can play in any available board",
@@ -363,7 +386,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (state.gameStatus === 'game-over') {
       if (state.winner) {
         toast({
-          title: `Congratulations ${state.winner}! You Win!`,
+          title: `Congratulations ${state.playerSymbols[state.winner]}! You Win!`,
           description: "You've won the game!",
         });
       } else {
@@ -414,17 +437,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const toggleSound = () => {
     dispatch({ type: 'TOGGLE_SOUND' });
   };
+  
+  const updateSettings = (settings: GameSettings) => {
+    dispatch({ type: 'UPDATE_SETTINGS', settings });
+  };
 
   const contextValue = {
     state,
-    dispatch,
     makeMove,
     undoMove,
     redoMove,
     restartGame,
     pauseGame,
     resumeGame,
-    toggleSound
+    toggleSound,
+    updateSettings
   };
 
   return (
