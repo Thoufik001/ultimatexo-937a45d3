@@ -1,10 +1,13 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 210 40% 98%;
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
@@ -13,7 +16,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 221.2 83% 53.3%;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -30,25 +33,18 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 221.2 83% 53.3%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Game specific colors */
+    --game-x: 221.2 83% 53.3%; /* Blue */
+    --game-o: 342 89% 48.3%; /* Red */
+    --game-board: 0 0% 100%;
+    --game-board-active: 221.2 83% 95%;
+    --game-board-inactive: 0 0% 95%;
+    --game-board-won-x: 221.2 83% 90%;
+    --game-board-won-o: 342 89% 90%;
   }
 
   .dark {
@@ -61,7 +57,7 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
 
     --secondary: 217.2 32.6% 17.5%;
@@ -78,15 +74,16 @@
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --ring: 224.3 76.3% 48%;
+
+    /* Game specific colors in dark mode */
+    --game-x: 217.2 91.2% 69.8%; /* Brighter blue */
+    --game-o: 342 90% 65%; /* Brighter red */
+    --game-board: 222.2 47.4% 11.2%;
+    --game-board-active: 222.2 47.4% 15%;
+    --game-board-inactive: 222.2 47.4% 8%;
+    --game-board-won-x: 217.2 91.2% 20%;
+    --game-board-won-o: 342 89% 20%;
   }
 }
 
@@ -94,8 +91,46 @@
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .cell {
+    @apply w-full aspect-square flex items-center justify-center text-2xl sm:text-3xl font-bold transition-all duration-200 border border-border/50;
+  }
+  
+  .cell.x {
+    @apply text-game-x;
+  }
+  
+  .cell.o {
+    @apply text-game-o;
+  }
+  
+  .mini-board {
+    @apply grid grid-cols-3 bg-game-board border border-border rounded-md overflow-hidden transition-all duration-300;
+  }
+  
+  .mini-board.active {
+    @apply bg-game-board-active shadow-md;
+  }
+  
+  .mini-board.inactive {
+    @apply bg-game-board-inactive opacity-80;
+  }
+  
+  .mini-board.won-x {
+    @apply bg-game-board-won-x;
+  }
+  
+  .mini-board.won-o {
+    @apply bg-game-board-won-o;
+  }
+  
+  .game-button {
+    @apply px-4 py-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1;
   }
 }
