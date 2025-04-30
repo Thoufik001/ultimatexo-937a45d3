@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useGame } from '@/context/GameContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SettingsDrawerProps {
   open: boolean;
@@ -27,6 +28,8 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ open, onClose }) => {
   const [timerEnabled, setTimerEnabled] = useState(state.timerEnabled);
   const [xSymbol, setXSymbol] = useState(state.playerSymbols.X);
   const [oSymbol, setOSymbol] = useState(state.playerSymbols.O);
+  const [botMode, setBotMode] = useState(state.botMode);
+  const [difficulty, setDifficulty] = useState(state.difficulty);
   
   const handleSave = () => {
     updateSettings({
@@ -35,7 +38,9 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ open, onClose }) => {
       playerSymbols: {
         X: xSymbol || 'X',
         O: oSymbol || 'O'
-      }
+      },
+      botMode,
+      difficulty
     });
     onClose();
   };
@@ -49,6 +54,36 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ open, onClose }) => {
           </DrawerHeader>
           
           <div className="p-4 space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="bot-mode" className="text-base">Bot Mode</Label>
+                <Switch 
+                  id="bot-mode" 
+                  checked={botMode} 
+                  onCheckedChange={setBotMode}
+                />
+              </div>
+              
+              {botMode && (
+                <div className="space-y-2">
+                  <Label htmlFor="difficulty">Bot Difficulty</Label>
+                  <Select 
+                    value={difficulty} 
+                    onValueChange={(value: 'easy' | 'medium' | 'hard') => setDifficulty(value)}
+                  >
+                    <SelectTrigger id="difficulty">
+                      <SelectValue placeholder="Select difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easy">Easy</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="hard">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="timer-enabled" className="text-base">Enable Timer</Label>

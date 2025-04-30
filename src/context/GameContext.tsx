@@ -87,7 +87,38 @@ const initialState: GameState = {
   difficulty: 'medium'
 };
 
-// ... keep existing code (checkWinner and playSound functions remain unchanged)
+// Helper function to check if a player has won on a board
+const checkWinner = (board: Array<Player>): Player => {
+  // Winning combinations: rows, columns, and diagonals
+  const lines = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+    [0, 4, 8], [2, 4, 6]             // diagonals
+  ];
+  
+  for (const [a, b, c] of lines) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a];
+    }
+  }
+  
+  // If all cells are filled and no winner, it's a draw (represented as null)
+  return null;
+};
+
+// Function to play sound effects
+const playSound = (soundType: 'move' | 'win' | 'gameOver' | 'timeWarning', isMuted: boolean) => {
+  if (isMuted) return;
+  
+  // In a real implementation, we would play actual sounds here
+  // For now, we'll just log to the console
+  console.log(`Playing sound: ${soundType}`);
+  
+  // A more complete implementation would use the Web Audio API or an audio library
+  // Example with HTML5 Audio:
+  // const audio = new Audio(`/sounds/${soundType}.mp3`);
+  // audio.play();
+};
 
 // Bot move logic
 const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: number | null, difficulty: string): { boardIndex: number; cellIndex: number } => {
