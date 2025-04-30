@@ -42,6 +42,7 @@ type GameAction =
   | { type: 'START_GAME' }
   | { type: 'PAUSE' }
   | { type: 'RESUME' }
+  | { type: 'STOP_GAME' }
   | { type: 'TOGGLE_SOUND' }
   | { type: 'TICK_TIMER' }
   | { type: 'TIME_UP' }
@@ -59,6 +60,7 @@ interface GameContextType {
   startGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
+  stopGame: () => void;
   toggleSound: () => void;
   toggleBotMode: () => void;
   updateSettings: (settings: GameSettings) => void;
@@ -120,7 +122,7 @@ const playSound = (soundType: 'move' | 'win' | 'gameOver' | 'timeWarning', isMut
   // audio.play();
 };
 
-// Bot move logic
+// Improved bot move logic with winning strategy
 const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: number | null, difficulty: string): { boardIndex: number; cellIndex: number } => {
   // Find all valid boards to play on
   const validBoardIndices: number[] = [];
@@ -134,23 +136,87 @@ const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: nu
     });
   }
   
-  // Select a random valid board
-  const boardIndex = validBoardIndices[Math.floor(Math.random() * validBoardIndices.length)];
+  // Select a random valid board if we can't find a strategic move
+  let boardIndex = validBoardIndices[Math.floor(Math.random() * validBoardIndices.length)];
+  let cellIndex = -1;
   
-  // Find all empty cells on the selected board
-  const emptyCellIndices: number[] = [];
-  boards[boardIndex].forEach((cell, index) => {
-    if (cell === null) {
-      emptyCellIndices.push(index);
+  // Check each valid board for strategic moves based on difficulty
+  if (difficulty === 'medium' || difficulty === 'hard') {
+    // Try to find a winning move in any valid board first
+    for (const bIndex of validBoardIndices) {
+      const winningMove = findWinningMove(boards[bIndex], 'O');
+      if (winningMove !== -1) {
+        boardIndex = bIndex;
+        cellIndex = winningMove;
+        break;
+      }
     }
-  });
+    
+    // If no winning move, try to block opponent's winning move
+    if (cellIndex === -1) {
+      for (const bIndex of validBoardIndices) {
+        const blockingMove = findWinningMove(boards[bIndex], 'X');
+        if (blockingMove !== -1) {
+          boardIndex = bIndex;
+          cellIndex = blockingMove;
+          break;
+        }
+      }
+    }
+  }
   
-  // Select a random empty cell
-  // For 'easy' difficulty, just random moves
-  // For 'medium' and 'hard', add basic strategy later
-  const cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
+  // If no strategic move found (or on 'easy' difficulty), make a random move
+  if (cellIndex === -1) {
+    // Find all empty cells on the selected board
+    const emptyCellIndices: number[] = [];
+    boards[boardIndex].forEach((cell, index) => {
+      if (cell === null) {
+        emptyCellIndices.push(index);
+      }
+    });
+    
+    // If hard mode and no immediate win/block, try to take center or corners
+    if (difficulty === 'hard' && emptyCellIndices.length > 1) {
+      // Prefer center
+      if (emptyCellIndices.includes(4)) {
+        cellIndex = 4;
+      } 
+      // Then corners
+      else if (emptyCellIndices.some(i => [0, 2, 6, 8].includes(i))) {
+        const corners = emptyCellIndices.filter(i => [0, 2, 6, 8].includes(i));
+        cellIndex = corners[Math.floor(Math.random() * corners.length)];
+      } 
+      // Then edges
+      else {
+        cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
+      }
+    } else {
+      // For easy mode or fallback, just pick randomly
+      cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
+    }
+  }
   
   return { boardIndex, cellIndex };
+};
+
+// Helper function to find a winning move for a player
+const findWinningMove = (board: Array<Player>, player: Player): number => {
+  // Winning combinations: rows, columns, and diagonals
+  const lines = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+    [0, 4, 8], [2, 4, 6]             // diagonals
+  ];
+  
+  // Check each line for a potential winning move
+  for (const [a, b, c] of lines) {
+    // If two cells are taken by player and one is empty, return the empty cell
+    if (board[a] === player && board[b] === player && board[c] === null) return c;
+    if (board[a] === player && board[c] === player && board[b] === null) return b;
+    if (board[b] === player && board[c] === player && board[a] === null) return a;
+  }
+  
+  return -1; // No winning move found
 };
 
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -181,6 +247,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       if (boardWinner !== null) {
         newBoardStatus[boardIndex] = boardWinner;
         playSound('win', state.isMuted);
+      } else if (!newBoards[boardIndex].includes(null)) {
+        // If board is full with no winner, mark it as a tie
+        newBoardStatus[boardIndex] = null;
       }
       
       // Determine next board to play in
@@ -246,6 +315,13 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
     }
     
+    case 'STOP_GAME': {
+      return {
+        ...state,
+        gameStatus: 'init'
+      };
+    }
+    
     case 'TOGGLE_BOT_MODE': {
       return {
         ...state,
@@ -308,7 +384,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         timerEnabled: state.timerEnabled,
         playerSymbols: state.playerSymbols,
         botMode: state.botMode,
-        difficulty: state.difficulty
+        difficulty: state.difficulty,
+        gameStatus: 'init'  // Ensure game returns to init state
       };
     }
     
@@ -529,6 +606,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'RESUME' });
   };
 
+  const stopGame = () => {
+    dispatch({ type: 'STOP_GAME' });
+  };
+
   const toggleSound = () => {
     dispatch({ type: 'TOGGLE_SOUND' });
   };
@@ -550,6 +631,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     startGame,
     pauseGame,
     resumeGame,
+    stopGame,
     toggleSound,
     toggleBotMode,
     updateSettings

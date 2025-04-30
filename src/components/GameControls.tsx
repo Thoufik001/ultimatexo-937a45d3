@@ -14,7 +14,8 @@ import {
   Sun,
   Settings,
   Bot,
-  RefreshCw
+  RefreshCw,
+  Square
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useTheme } from '@/hooks/use-theme';
@@ -26,7 +27,7 @@ interface GameControlsProps {
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
-  const { state, restartGame, startGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound, toggleBotMode } = useGame();
+  const { state, restartGame, startGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound, toggleBotMode, stopGame } = useGame();
   const { theme, setTheme } = useTheme();
   
   const { 
@@ -98,7 +99,16 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
                 <Button 
                   variant="outline" 
                   size="icon" 
-                  onClick={restartGame}
+                  onClick={stopGame}
+                  aria-label="Stop game"
+                  className="hover-scale"
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => restartGame()}
                   aria-label="Restart game"
                   className="hover-scale"
                 >
@@ -117,15 +127,26 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
                   {gameStatus === 'paused' ? <Play className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
                 </Button>
                 {gameStatus === 'paused' && (
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={restartGame}
-                    aria-label="Restart game"
-                    className="hover-scale"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={stopGame}
+                      aria-label="Stop game"
+                      className="hover-scale"
+                    >
+                      <Square className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => restartGame()}
+                      aria-label="Restart game"
+                      className="hover-scale"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </>
                 )}
               </>
             )}
