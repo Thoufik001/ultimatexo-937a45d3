@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
@@ -289,10 +290,11 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       
       playSound('gameOver', state.isMuted);
       
+      // Instead of game over, just switch to the next player's turn
       return {
         ...state,
-        gameStatus: 'game-over',
-        winner: state.currentPlayer === 'X' ? 'O' : 'X'
+        currentPlayer: state.currentPlayer === 'X' ? 'O' : 'X',
+        turnTimeRemaining: state.turnTimeLimit, // Reset timer for next player
       };
     }
     
@@ -362,12 +364,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       dispatch({ type: 'TICK_TIMER' });
     }, 1000);
 
+    // Show warning toast when time is low
+    if (state.turnTimeRemaining === 5) {
+      toast({
+        title: "Time Running Out!",
+        description: `${state.playerSymbols[state.currentPlayer]}, make your move quickly!`,
+        variant: "destructive",
+      });
+    }
+
     if (state.turnTimeRemaining <= 0) {
       dispatch({ type: 'TIME_UP' });
+      toast({
+        title: `Time's Up!`,
+        description: `${state.playerSymbols[state.currentPlayer === 'X' ? 'O' : 'X']}'s turn now.`,
+      });
     }
 
     return () => clearInterval(timer);
-  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled]);
+  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled, state.currentPlayer, state.playerSymbols]);
 
   // Game over notification
   useEffect(() => {
