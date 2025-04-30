@@ -29,6 +29,7 @@ const MiniBoard: React.FC<MiniBoardProps> = ({ boardIndex, playerSymbols }) => {
     !isActive && 'inactive opacity-80',
     boardWinner === 'X' && 'won-x',
     boardWinner === 'O' && 'won-o',
+    gameStatus === 'init' && 'cursor-not-allowed opacity-70'
   );
   
   return (
@@ -49,6 +50,12 @@ const MiniBoard: React.FC<MiniBoardProps> = ({ boardIndex, playerSymbols }) => {
           <span className={`text-4xl font-bold ${boardWinner === 'X' ? 'text-game-x' : 'text-game-o'} animate-fade-in`}>
             {playerSymbols[boardWinner]}
           </span>
+        </div>
+      )}
+      
+      {gameStatus === 'init' && (
+        <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px] rounded-md">
+          {/* This overlay prevents interaction before game starts */}
         </div>
       )}
     </div>

@@ -12,17 +12,20 @@ import {
   VolumeX,
   Moon,
   Sun,
-  Settings
+  Settings,
+  Bot
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useTheme } from '@/hooks/use-theme';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface GameControlsProps {
   onOpenSettings: () => void;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
-  const { state, restartGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound } = useGame();
+  const { state, restartGame, startGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound, toggleBotMode } = useGame();
   const { theme, setTheme } = useTheme();
   
   const { 
@@ -33,7 +36,8 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
     isMuted, 
     moveHistory,
     currentMoveIndex,
-    playerSymbols
+    playerSymbols,
+    botMode
   } = state;
   
   const timePercentage = (turnTimeRemaining / turnTimeLimit) * 100;
@@ -45,11 +49,13 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-lg font-semibold">
-              {gameStatus === 'paused' 
-                ? 'Game Paused' 
-                : gameStatus === 'game-over' 
-                  ? 'Game Over' 
-                  : `Current Turn`
+              {gameStatus === 'init' 
+                ? 'Game Ready' 
+                : gameStatus === 'paused' 
+                  ? 'Game Paused' 
+                  : gameStatus === 'game-over' 
+                    ? 'Game Over' 
+                    : `Current Turn`
               }
             </span>
             <div className="flex items-center gap-2">
@@ -59,14 +65,25 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
                   ? state.winner 
                     ? `${playerSymbols[state.winner]} Wins!` 
                     : "It's a Tie!" 
-                  : `Player ${playerSymbols[currentPlayer]}`
+                  : gameStatus === 'init'
+                    ? "Start the game"
+                    : `Player ${playerSymbols[currentPlayer]}`
                 }
               </span>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
-            {gameStatus === 'playing' ? (
+            {gameStatus === 'init' ? (
+              <Button 
+                variant="default" 
+                onClick={startGame}
+                aria-label="Start game"
+                className="hover-scale"
+              >
+                <Play className="h-4 w-4 mr-1" /> Start Game
+              </Button>
+            ) : gameStatus === 'playing' ? (
               <Button 
                 variant="outline" 
                 size="icon" 
@@ -101,6 +118,29 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
             indicatorClassName={isTimeLow ? 'animate-pulse bg-red-500' : ''}
           />
         </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            <Label htmlFor="bot-mode" className="text-sm font-medium cursor-pointer">
+              Bot Mode
+            </Label>
+          </div>
+          <Switch
+            id="bot-mode"
+            checked={botMode}
+            onCheckedChange={toggleBotMode}
+            aria-label="Toggle bot mode"
+          />
+        </div>
+        
+        {botMode && (
+          <div className="bg-muted/50 p-2 rounded-md">
+            <p className="text-xs text-muted-foreground">
+              Bot will play as O. You play as X. {gameStatus === 'init' ? "Click Start Game to begin." : ""}
+            </p>
+          </div>
+        )}
       </div>
       
       <div className="flex flex-wrap gap-2 justify-center">

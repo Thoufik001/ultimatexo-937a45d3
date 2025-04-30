@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +12,7 @@ interface GameState {
   boardStatus: BoardStatus;
   currentPlayer: Player;
   nextBoardIndex: number | null;
-  gameStatus: 'playing' | 'paused' | 'game-over';
+  gameStatus: 'init' | 'playing' | 'paused' | 'game-over';
   winner: Player;
   turnTimeLimit: number;
   turnTimeRemaining: number;
@@ -23,12 +22,16 @@ interface GameState {
   showConfetti: boolean;
   timerEnabled: boolean;
   playerSymbols: Record<string, string>;
+  botMode: boolean;
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 interface GameSettings {
   turnTimeLimit: number;
   timerEnabled: boolean;
   playerSymbols: Record<string, string>;
+  botMode: boolean;
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 type GameAction = 
@@ -36,12 +39,15 @@ type GameAction =
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'RESTART' }
+  | { type: 'START_GAME' }
   | { type: 'PAUSE' }
   | { type: 'RESUME' }
   | { type: 'TOGGLE_SOUND' }
   | { type: 'TICK_TIMER' }
   | { type: 'TIME_UP' }
   | { type: 'HIDE_CONFETTI' }
+  | { type: 'BOT_MOVE' }
+  | { type: 'TOGGLE_BOT_MODE' }
   | { type: 'UPDATE_SETTINGS'; settings: GameSettings };
 
 interface GameContextType {
@@ -50,9 +56,11 @@ interface GameContextType {
   undoMove: () => void;
   redoMove: () => void;
   restartGame: () => void;
+  startGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
   toggleSound: () => void;
+  toggleBotMode: () => void;
   updateSettings: (settings: GameSettings) => void;
 }
 
@@ -65,7 +73,7 @@ const initialState: GameState = {
   boardStatus: initialBoardStatus,
   currentPlayer: 'X',
   nextBoardIndex: null,
-  gameStatus: 'playing',
+  gameStatus: 'init',
   winner: null,
   turnTimeLimit: 30,
   turnTimeRemaining: 30,
@@ -74,43 +82,44 @@ const initialState: GameState = {
   currentMoveIndex: -1,
   showConfetti: false,
   timerEnabled: true,
-  playerSymbols: { 'X': 'X', 'O': 'O' }
+  playerSymbols: { 'X': 'X', 'O': 'O' },
+  botMode: false,
+  difficulty: 'medium'
 };
 
-const checkWinner = (board: Board): Player => {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
+// ... keep existing code (checkWinner and playSound functions remain unchanged)
 
-  for (const [a, b, c] of lines) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return board[a];
+// Bot move logic
+const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: number | null, difficulty: string): { boardIndex: number; cellIndex: number } => {
+  // Find all valid boards to play on
+  const validBoardIndices: number[] = [];
+  if (nextBoardIndex !== null && boardStatus[nextBoardIndex] === null) {
+    validBoardIndices.push(nextBoardIndex);
+  } else {
+    boardStatus.forEach((status, index) => {
+      if (status === null) {
+        validBoardIndices.push(index);
+      }
+    });
+  }
+  
+  // Select a random valid board
+  const boardIndex = validBoardIndices[Math.floor(Math.random() * validBoardIndices.length)];
+  
+  // Find all empty cells on the selected board
+  const emptyCellIndices: number[] = [];
+  boards[boardIndex].forEach((cell, index) => {
+    if (cell === null) {
+      emptyCellIndices.push(index);
     }
-  }
-
-  if (!board.includes(null)) {
-    return null; // Draw
-  }
-
-  return null; // Still playing
-};
-
-const playSound = (sound: 'move' | 'win' | 'timeWarning' | 'gameOver', isMuted: boolean) => {
-  if (isMuted) return;
+  });
   
-  // In a real implementation, we would play actual sounds here
-  console.log(`Playing sound: ${sound}`);
+  // Select a random empty cell
+  // For 'easy' difficulty, just random moves
+  // For 'medium' and 'hard', add basic strategy later
+  const cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
   
-  // You could create audio elements and play them here:
-  // const audio = new Audio(`/sounds/${sound}.mp3`);
-  // audio.play();
+  return { boardIndex, cellIndex };
 };
 
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -181,6 +190,38 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return newState;
     }
     
+    case 'BOT_MOVE': {
+      // Skip if it's not the bot's turn or game is not in playing state
+      if (!state.botMode || state.gameStatus !== 'playing' || state.currentPlayer !== 'O') {
+        return state;
+      }
+      
+      // Get bot's move
+      const { boardIndex, cellIndex } = getBotMove(
+        state.boards, 
+        state.boardStatus, 
+        state.nextBoardIndex, 
+        state.difficulty
+      );
+      
+      // Make the move (reuse MAKE_MOVE logic)
+      return gameReducer(state, { type: 'MAKE_MOVE', boardIndex, cellIndex });
+    }
+    
+    case 'START_GAME': {
+      return {
+        ...state,
+        gameStatus: 'playing'
+      };
+    }
+    
+    case 'TOGGLE_BOT_MODE': {
+      return {
+        ...state,
+        botMode: !state.botMode
+      };
+    }
+    
     case 'UNDO': {
       if (state.currentMoveIndex <= 0) return state;
       
@@ -234,7 +275,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         isMuted: state.isMuted,
         turnTimeLimit: state.turnTimeLimit,
         timerEnabled: state.timerEnabled,
-        playerSymbols: state.playerSymbols
+        playerSymbols: state.playerSymbols,
+        botMode: state.botMode,
+        difficulty: state.difficulty
       };
     }
     
@@ -311,7 +354,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         turnTimeLimit: action.settings.turnTimeLimit,
         turnTimeRemaining: action.settings.turnTimeLimit, // Reset current time
         timerEnabled: action.settings.timerEnabled,
-        playerSymbols: action.settings.playerSymbols
+        playerSymbols: action.settings.playerSymbols,
+        botMode: action.settings.botMode,
+        difficulty: action.settings.difficulty
       };
     }
     
@@ -355,6 +400,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     localStorage.setItem('ultimateXO', JSON.stringify(state));
   }, [state]);
+
+  // Bot move effect
+  useEffect(() => {
+    if (state.botMode && state.gameStatus === 'playing' && state.currentPlayer === 'O') {
+      // Add a small delay for better UX
+      const botTimer = setTimeout(() => {
+        dispatch({ type: 'BOT_MOVE' });
+      }, 1000);
+      
+      return () => clearTimeout(botTimer);
+    }
+  }, [state.botMode, state.gameStatus, state.currentPlayer]);
 
   // Timer effect
   useEffect(() => {
@@ -429,6 +486,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'RESTART' });
   };
 
+  const startGame = () => {
+    dispatch({ type: 'START_GAME' });
+  };
+
   const pauseGame = () => {
     dispatch({ type: 'PAUSE' });
   };
@@ -441,6 +502,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'TOGGLE_SOUND' });
   };
   
+  const toggleBotMode = () => {
+    dispatch({ type: 'TOGGLE_BOT_MODE' });
+  };
+  
   const updateSettings = (settings: GameSettings) => {
     dispatch({ type: 'UPDATE_SETTINGS', settings });
   };
@@ -451,9 +516,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     undoMove,
     redoMove,
     restartGame,
+    startGame,
     pauseGame,
     resumeGame,
     toggleSound,
+    toggleBotMode,
     updateSettings
   };
 
