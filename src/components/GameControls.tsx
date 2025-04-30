@@ -13,7 +13,8 @@ import {
   Moon,
   Sun,
   Settings,
-  Bot
+  Bot,
+  RefreshCw
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useTheme } from '@/hooks/use-theme';
@@ -84,25 +85,49 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
                 <Play className="h-4 w-4 mr-1" /> Start Game
               </Button>
             ) : gameStatus === 'playing' ? (
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={pauseGame}
-                aria-label="Pause game"
-                className="hover-scale"
-              >
-                <Pause className="h-4 w-4" />
-              </Button>
+              <>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={pauseGame}
+                  aria-label="Pause game"
+                  className="hover-scale"
+                >
+                  <Pause className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={restartGame}
+                  aria-label="Restart game"
+                  className="hover-scale"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </>
             ) : (
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={gameStatus === 'paused' ? resumeGame : restartGame}
-                aria-label={gameStatus === 'paused' ? 'Resume game' : 'Restart game'}
-                className="hover-scale"
-              >
-                {gameStatus === 'paused' ? <Play className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-              </Button>
+              <>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={gameStatus === 'paused' ? resumeGame : restartGame}
+                  aria-label={gameStatus === 'paused' ? 'Resume game' : 'Restart game'}
+                  className="hover-scale"
+                >
+                  {gameStatus === 'paused' ? <Play className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+                </Button>
+                {gameStatus === 'paused' && (
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={restartGame}
+                    aria-label="Restart game"
+                    className="hover-scale"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
