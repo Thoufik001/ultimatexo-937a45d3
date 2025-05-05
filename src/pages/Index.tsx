@@ -9,9 +9,11 @@ import WelcomeModal from '@/components/WelcomeModal';
 import SettingsDrawer from '@/components/SettingsDrawer';
 import Confetti from '@/components/Confetti';
 import { useGame } from '@/context/GameContext';
+import MultiplayerButton from '@/components/MultiplayerButton';
 import { Button } from '@/components/ui/button';
-import { Users } from 'lucide-react';
+import { Copy, Link, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Game: React.FC = () => {
   const {
@@ -40,8 +42,11 @@ const Game: React.FC = () => {
     setShowSettings(true);
   };
   
-  const handleMultiplayerClick = () => {
-    setShowSettings(true);
+  const copyGameCode = () => {
+    if (state.gameCode) {
+      navigator.clipboard.writeText(state.gameCode);
+      toast.success("Game code copied to clipboard!");
+    }
   };
   
   return (
@@ -51,47 +56,90 @@ const Game: React.FC = () => {
         <div className="w-full lg:w-1/3 flex flex-col gap-4">
           <GameControls onOpenSettings={handleOpenSettings} />
           
-          <Button 
-            className="w-full glass-card group" 
-            variant="outline" 
-            onClick={handleMultiplayerClick}
-          >
-            <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
-            <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Online Multiplayer'}</span>
-          </Button>
-          
-          {state.multiplayerMode && state.gameCode && (
-            <div className="glass-card p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Game Information</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Game Code:</span>
-                  <span className="font-mono font-medium">{state.gameCode}</span>
+          <Tabs defaultValue="multiplayer" className="w-full">
+            <TabsList className="w-full grid grid-cols-2">
+              <TabsTrigger value="multiplayer">Multiplayer</TabsTrigger>
+              <TabsTrigger value="instructions">Instructions</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="multiplayer" className="space-y-4">
+              {!state.multiplayerMode ? (
+                <MultiplayerButton />
+              ) : (
+                <div className="glass-card p-4 rounded-lg space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">Game Information</h3>
+                    <Button variant="ghost" size="sm" className="h-8 px-2" onClick={copyGameCode}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Game Code:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-medium">{state.gameCode}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Your Name:</span>
+                      <span className="font-medium">{state.playerName || 'Player'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Opponent:</span>
+                      {state.opponentName ? (
+                        <span className="font-medium">{state.opponentName}</span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full animate-pulse">
+                          Waiting...
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Current Turn:</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${state.isMyTurn 
+                        ? 'bg-green-500/20 text-green-600' 
+                        : 'bg-yellow-500/20 text-yellow-600'}`}
+                      >
+                        {state.isMyTurn ? 'Your Turn' : 'Opponent\'s Turn'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Your Symbol:</span>
+                      <span className="font-medium">
+                        {state.isHost ? state.playerSymbols.X : state.playerSymbols.O}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    className="w-full" 
+                    variant="outline" 
+                    onClick={() => {
+                      toast.info("This feature will be available in a future update");
+                    }}
+                  >
+                    <Link className="mr-2 h-4 w-4" />
+                    Share Game Link
+                  </Button>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Your Name:</span>
-                  <span className="font-medium">{state.playerName || 'Player'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Status:</span>
-                  <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full">
-                    {state.opponentName ? 'Connected' : 'Waiting for opponent...'}
-                  </span>
-                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="instructions" className="mt-0">
+              <div className="glass-card p-4 rounded-lg">
+                <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
+                <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
+                  <li>Win three mini-boards in a row to win the game</li>
+                  <li>Your move determines where your opponent must play next</li>
+                  <li>If sent to a completed board, you may play anywhere on the grid</li>
+                  <li>Watch the timer - if it runs out, you lose your turn</li>
+                  <li>Try different AI difficulty levels in bot mode</li>
+                  <li>Challenge friends online in multiplayer mode</li>
+                </ul>
               </div>
-            </div>
-          )}
-          
-          <div className="glass-card p-4 rounded-lg">
-            <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
-            <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-              <li>Win three mini-boards in a row to win the game</li>
-              <li>Your move determines where your opponent must play next</li>
-              <li>If sent to a completed board, you may play anywhere on the grid</li>
-              <li>Watch the timer - if it runs out, you lose your turn</li>
-              <li>Try different AI difficulty levels in bot mode</li>
-            </ul>
-          </div>
+            </TabsContent>
+          </Tabs>
         </div>
         
         {/* Right Column - Game Board */}
@@ -102,11 +150,15 @@ const Game: React.FC = () => {
             <div className="flex justify-between items-center mt-4 p-2 rounded-md bg-muted/30">
               <div className="flex items-center space-x-2">
                 <div className={`w-3 h-3 rounded-full ${state.currentPlayer === 'X' ? 'bg-green-500' : 'bg-muted'}`}></div>
-                <span>{state.playerName || 'You'} ({state.playerSymbols.X})</span>
+                <span>
+                  {state.isHost ? state.playerName || 'You' : state.opponentName || 'Opponent'} ({state.playerSymbols.X})
+                </span>
               </div>
               <span className="text-xs text-muted-foreground">VS</span>
               <div className="flex items-center space-x-2">
-                <span>{state.opponentName || 'Opponent'} ({state.playerSymbols.O})</span>
+                <span>
+                  {!state.isHost ? state.playerName || 'You' : state.opponentName || 'Opponent'} ({state.playerSymbols.O})
+                </span>
                 <div className={`w-3 h-3 rounded-full ${state.currentPlayer === 'O' ? 'bg-green-500' : 'bg-muted'}`}></div>
               </div>
             </div>

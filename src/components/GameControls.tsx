@@ -3,55 +3,58 @@ import React from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
 import { 
+  ArrowRight, 
+  Settings, 
+  RotateCcw, 
   Play, 
   Pause, 
-  RotateCcw, 
-  Undo, 
-  Redo, 
   Volume2, 
   VolumeX,
-  Moon,
-  Sun,
-  Settings,
   Bot,
-  RefreshCw,
-  Square
-} from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { useTheme } from '@/hooks/use-theme';
+  RefreshCcw
+} from "lucide-react";
+import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface GameControlsProps {
   onOpenSettings: () => void;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
-  const { state, restartGame, startGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound, toggleBotMode, stopGame, updateSettings } = useGame();
-  const { theme, setTheme } = useTheme();
-  
   const { 
-    currentPlayer, 
-    turnTimeLimit, 
-    turnTimeRemaining, 
-    gameStatus, 
-    isMuted, 
-    moveHistory,
-    currentMoveIndex,
-    playerSymbols,
-    botMode,
-    difficulty
-  } = state;
+    state, 
+    startGame, 
+    pauseGame, 
+    resumeGame, 
+    restartGame, 
+    toggleSound,
+    toggleBotMode,
+    updateSettings
+  } = useGame();
   
-  const timePercentage = (turnTimeRemaining / turnTimeLimit) * 100;
-  const isTimeLow = turnTimeRemaining <= 5;
+  const handleStart = () => {
+    if (state.gameStatus === 'init') {
+      startGame();
+    } else if (state.gameStatus === 'paused') {
+      resumeGame();
+    } else if (state.gameStatus === 'playing') {
+      pauseGame();
+    }
+  };
+  
+  const handleRestart = () => {
+    restartGame();
+  };
+  
+  const toggleBot = () => {
+    if (state.multiplayerMode) {
+      toast("Bot mode is not available in multiplayer");
+      return;
+    }
+    toggleBotMode();
+  };
   
   const handleDifficultyChange = (value: 'easy' | 'medium' | 'hard') => {
     updateSettings({
@@ -64,232 +67,149 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
     });
   };
   
-  const handleBotModeToggle = (enabled: boolean) => {
-    // Call the existing toggleBotMode function
-    toggleBotMode();
+  const getActionButtonContent = () => {
+    if (state.gameStatus === 'init') {
+      return (
+        <>
+          <Play className="mr-2 h-4 w-4" />
+          Start Game
+        </>
+      );
+    } else if (state.gameStatus === 'paused') {
+      return (
+        <>
+          <Play className="mr-2 h-4 w-4" />
+          Resume Game
+        </>
+      );
+    } else if (state.gameStatus === 'game-over') {
+      return (
+        <>
+          <RefreshCcw className="mr-2 h-4 w-4" />
+          New Game
+        </>
+      );
+    } else {
+      // Playing
+      return (
+        <>
+          <Pause className="mr-2 h-4 w-4" />
+          Pause Game
+        </>
+      );
+    }
   };
   
   return (
-    <div className="flex flex-col gap-4 glass-card p-4 rounded-lg">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-lg font-semibold">
-              {gameStatus === 'init' 
-                ? 'Game Ready' 
-                : gameStatus === 'paused' 
-                  ? 'Game Paused' 
-                  : gameStatus === 'game-over' 
-                    ? 'Game Over' 
-                    : `Current Turn`
-              }
+    <div className="glass-card p-4 rounded-lg space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Game Controls</h2>
+        {state.gameStatus === 'playing' && state.turnTimeRemaining !== null && state.timerEnabled && (
+          <div className="w-16 h-16 flex items-center justify-center rounded-full border-2">
+            <span className={`text-xl font-medium ${state.turnTimeRemaining <= 5 ? 'text-red-500 animate-pulse' : ''}`}>
+              {state.turnTimeRemaining}
             </span>
-            <div className="flex items-center gap-2">
-              <div className={`w-4 h-4 rounded-full ${currentPlayer === 'X' ? 'bg-game-x' : 'bg-game-o'}`}></div>
-              <span className="font-inter text-sm">
-                {gameStatus === 'game-over' 
-                  ? state.winner 
-                    ? `${playerSymbols[state.winner]} Wins!` 
-                    : "It's a Tie!" 
-                  : gameStatus === 'init'
-                    ? "Start the game"
-                    : `Player ${playerSymbols[currentPlayer]}`
-                }
-              </span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {gameStatus === 'init' ? (
-              <Button 
-                variant="default" 
-                onClick={startGame}
-                aria-label="Start game"
-                className="hover-scale"
-              >
-                <Play className="h-4 w-4 mr-1" /> Start Game
-              </Button>
-            ) : gameStatus === 'playing' ? (
-              <>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={pauseGame}
-                  aria-label="Pause game"
-                  className="hover-scale"
-                >
-                  <Pause className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={stopGame}
-                  aria-label="Stop game"
-                  className="hover-scale"
-                >
-                  <Square className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={() => restartGame()}
-                  aria-label="Restart game"
-                  className="hover-scale"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={gameStatus === 'paused' ? resumeGame : restartGame}
-                  aria-label={gameStatus === 'paused' ? 'Resume game' : 'Restart game'}
-                  className="hover-scale"
-                >
-                  {gameStatus === 'paused' ? <Play className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-                </Button>
-                {gameStatus === 'paused' && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={stopGame}
-                      aria-label="Stop game"
-                      className="hover-scale"
-                    >
-                      <Square className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => restartGame()}
-                      aria-label="Restart game"
-                      className="hover-scale"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-        
-        <div className="w-full">
-          <div className="flex justify-between text-sm mb-1">
-            <span className="font-inter">Time remaining</span>
-            <span className="font-mono">{turnTimeRemaining}s</span>
-          </div>
-          <Progress 
-            value={timePercentage} 
-            className={`h-2 ${isTimeLow ? 'bg-red-200' : ''}`}
-            indicatorClassName={isTimeLow ? 'animate-pulse bg-red-500' : ''}
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-primary" />
-            <Label htmlFor="bot-mode" className="text-sm font-medium cursor-pointer">
-              Bot Mode
-            </Label>
-          </div>
-          <Switch
-            id="bot-mode"
-            checked={botMode}
-            onCheckedChange={handleBotModeToggle}
-            aria-label="Toggle bot mode"
-          />
-        </div>
-        
-        {botMode && (
-          <div className="space-y-3">
-            <div className="bg-muted/50 p-2 rounded-md">
-              <p className="text-xs text-muted-foreground">
-                Bot will play as O. You play as X. {gameStatus === 'init' ? "Click Start Game to begin." : ""}
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="difficulty-select" className="text-sm">Bot Difficulty</Label>
-              <Select 
-                value={difficulty} 
-                onValueChange={handleDifficultyChange}
-              >
-                <SelectTrigger id="difficulty-select" className="w-full">
-                  <SelectValue placeholder="Select difficulty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="easy">Easy (Random Moves)</SelectItem>
-                  <SelectItem value="medium">Medium (Basic Strategy)</SelectItem>
-                  <SelectItem value="hard">Hard (Advanced Strategy)</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <div className="mt-1 p-2 bg-muted/30 rounded text-xs text-muted-foreground">
-                {difficulty === 'easy' && "The bot will make random moves, suitable for beginners."}
-                {difficulty === 'medium' && "The bot will use basic strategy to win or block your winning moves."}
-                {difficulty === 'hard' && "The bot will use advanced strategy, focusing on optimal positions and forks."}
-              </div>
-            </div>
           </div>
         )}
       </div>
       
-      <div className="flex flex-wrap gap-2 justify-center">
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="hover-scale"
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-2">
+          <Button 
+            onClick={handleStart} 
+            disabled={state.gameStatus === 'game-over' || (state.multiplayerMode && !state.opponentName)}
+            className="w-full"
+          >
+            {getActionButtonContent()}
+          </Button>
+          <Button onClick={handleRestart} variant="outline" className="w-full">
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Restart
+          </Button>
+        </div>
         
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={toggleSound}
-          aria-label={isMuted ? 'Unmute sound' : 'Mute sound'}
-          className="hover-scale"
-        >
-          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={toggleSound} variant="outline" className="w-full">
+            {state.isMuted ? (
+              <>
+                <VolumeX className="mr-2 h-4 w-4" />
+                Unmute
+              </>
+            ) : (
+              <>
+                <Volume2 className="mr-2 h-4 w-4" />
+                Mute
+              </>
+            )}
+          </Button>
+          <Button onClick={onOpenSettings} variant="outline" className="w-full">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
+        </div>
+      </div>
+      
+      <div className="pt-2">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="bot-mode-control"
+              checked={state.botMode} 
+              onCheckedChange={toggleBot}
+              disabled={state.multiplayerMode}
+            />
+            <label htmlFor="bot-mode-control" className="text-sm font-medium cursor-pointer">Bot Mode</label>
+          </div>
+          {state.multiplayerMode ? (
+            <Badge variant="outline" className="text-xs">
+              Multiplayer Active
+            </Badge>
+          ) : (
+            <Badge variant={state.botMode ? "default" : "outline"} className="text-xs">
+              {state.botMode ? `Bot: ${state.difficulty}` : "Player vs Player"}
+            </Badge>
+          )}
+        </div>
         
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={undoMove}
-          disabled={currentMoveIndex <= 0}
-          aria-label="Undo move"
-          className="hover-scale"
-        >
-          <Undo className="h-4 w-4" />
-        </Button>
-        
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={redoMove}
-          disabled={currentMoveIndex >= moveHistory.length - 1}
-          aria-label="Redo move"
-          className="hover-scale"
-        >
-          <Redo className="h-4 w-4" />
-        </Button>
-        
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={onOpenSettings}
-          aria-label="Game Settings"
-          className="hover-scale"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
+        {state.botMode && !state.multiplayerMode && (
+          <div className="pt-1">
+            <Select 
+              value={state.difficulty} 
+              onValueChange={handleDifficultyChange}
+            >
+              <SelectTrigger className="w-full">
+                <div className="flex items-center">
+                  <Bot className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Select difficulty" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="easy">Easy (Random)</SelectItem>
+                <SelectItem value="medium">Medium (Basic Strategy)</SelectItem>
+                <SelectItem value="hard">Hard (Advanced Strategy)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+      
+      <div className="flex justify-between items-center text-sm pt-2">
+        <div className="flex items-center gap-1">
+          <span className="flex h-3 w-3 rounded-full bg-green-500"></span>
+          <span>{state.playerSymbols[state.currentPlayer]}'s turn</span>
+        </div>
+        <div className="text-muted-foreground">
+          {state.gameStatus === 'playing' && (
+            <div className="flex items-center gap-1">
+              <ArrowRight className="h-3 w-3" />
+              {state.nextBoardIndex !== null ? (
+                <span>Board {state.nextBoardIndex + 1}</span>
+              ) : (
+                <span>Any Board</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

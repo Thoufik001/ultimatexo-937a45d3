@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
+import multiplayerService, { MultiplayerResponse } from '@/services/MultiplayerService';
 
 type Player = 'X' | 'O' | null;
 type Board = Array<Player>;
@@ -29,6 +30,7 @@ interface GameState {
   gameCode: string;
   opponentName: string | null;
   isHost: boolean;
+  isMyTurn: boolean;
 }
 
 interface GameSettings {
@@ -58,9 +60,10 @@ type GameAction =
   | { type: 'TOGGLE_BOT_MODE' }
   | { type: 'UPDATE_SETTINGS'; settings: GameSettings }
   | { type: 'OPPONENT_MOVE'; boardIndex: number; cellIndex: number }
-  | { type: 'CREATE_MULTIPLAYER_GAME'; gameCode: string }
-  | { type: 'JOIN_MULTIPLAYER_GAME'; gameCode: string }
-  | { type: 'SET_OPPONENT_NAME'; name: string };
+  | { type: 'CREATE_MULTIPLAYER_GAME'; gameCode: string; isHost: boolean }
+  | { type: 'JOIN_MULTIPLAYER_GAME'; gameCode: string; opponentName: string; isHost: boolean }
+  | { type: 'SET_OPPONENT_NAME'; name: string }
+  | { type: 'SET_MY_TURN'; isMyTurn: boolean };
 
 interface GameContextType {
   state: GameState;
@@ -104,7 +107,8 @@ const initialState: GameState = {
   playerName: '',
   gameCode: '',
   opponentName: null,
-  isHost: false
+  isHost: false,
+  isMyTurn: true
 };
 
 // Helper function to check if a player has won on a board
@@ -351,7 +355,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         state.gameStatus !== 'playing' ||
         (state.nextBoardIndex !== null && state.nextBoardIndex !== boardIndex) ||
         state.boardStatus[boardIndex] !== null ||
-        state.boards[boardIndex][cellIndex] !== null
+        state.boards[boardIndex][cellIndex] !== null ||
+        (state.multiplayerMode && !state.isMyTurn)
       ) {
         return state;
       }
@@ -394,6 +399,11 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         cellIndex
       });
       
+      // If in multiplayer mode, send move to opponent
+      if (state.multiplayerMode && state.gameCode) {
+        multiplayerService.makeMove(boardIndex, cellIndex);
+      }
+      
       const newState: GameState = {
         ...state,
         boards: newBoards,
@@ -405,7 +415,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         turnTimeRemaining: state.turnTimeLimit,
         moveHistory: newHistory,
         currentMoveIndex: state.currentMoveIndex + 1,
-        showConfetti: gameWinner !== null
+        showConfetti: gameWinner !== null,
+        isMyTurn: state.multiplayerMode ? false : true // Toggle turn in multiplayer
       };
       
       playSound('move', state.isMuted);
@@ -452,7 +463,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'UNDO': {
-      if (state.currentMoveIndex <= 0) return state;
+      if (state.currentMoveIndex <= 0 || state.multiplayerMode) return state;
       
       const prevMoveIndex = state.currentMoveIndex - 1;
       const prevMove = state.moveHistory[prevMoveIndex];
@@ -472,7 +483,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'REDO': {
-      if (state.currentMoveIndex >= state.moveHistory.length - 1) return state;
+      if (state.currentMoveIndex >= state.moveHistory.length - 1 || state.multiplayerMode) return state;
       
       const nextMoveIndex = state.currentMoveIndex + 1;
       const historicalMove = state.moveHistory[nextMoveIndex];
@@ -511,7 +522,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         playerName: state.playerName,
         gameCode: state.gameCode,
         opponentName: state.opponentName,
-        isHost: state.isHost
+        isHost: state.isHost,
+        isMyTurn: true
       };
     }
     
@@ -585,8 +597,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     case 'OPPONENT_MOVE': {
       const { boardIndex, cellIndex } = action;
       
-      // Similar to MAKE_MOVE but for opponent's move received via multiplayer
-      if (state.gameStatus !== 'playing') {
+      if (state.gameStatus !== 'playing' || !state.multiplayerMode) {
         return state;
       }
       
@@ -634,7 +645,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         turnTimeRemaining: state.turnTimeLimit,
         moveHistory: newHistory,
         currentMoveIndex: state.currentMoveIndex + 1,
-        showConfetti: gameWinner !== null
+        showConfetti: gameWinner !== null,
+        isMyTurn: true // It's my turn again after opponent's move
       };
     }
     
@@ -644,7 +656,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         multiplayerMode: true,
         botMode: false,
         gameCode: action.gameCode,
-        isHost: true
+        isHost: action.isHost,
+        gameStatus: 'playing',
+        isMyTurn: action.isHost // Host plays first (X)
       };
     }
     
@@ -654,7 +668,10 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         multiplayerMode: true,
         botMode: false,
         gameCode: action.gameCode,
-        isHost: false
+        isHost: action.isHost,
+        opponentName: action.opponentName,
+        gameStatus: 'playing',
+        isMyTurn: !action.isHost // Guest plays second (O)
       };
     }
     
@@ -662,6 +679,13 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         opponentName: action.name
+      };
+    }
+    
+    case 'SET_MY_TURN': {
+      return {
+        ...state,
+        isMyTurn: action.isMyTurn
       };
     }
     
@@ -788,38 +812,65 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state.showConfetti]);
 
-  // Mock websocket connection effect for multiplayer
+  // Multiplayer WebSocket connection and event handling
   useEffect(() => {
-    if (state.multiplayerMode && state.gameCode) {
-      let connectionTimer: ReturnType<typeof setTimeout>;
+    if (state.multiplayerMode) {
+      const removeListener = multiplayerService.addListener((data: MultiplayerResponse) => {
+        console.log("Multiplayer event received:", data);
+        
+        switch (data.type) {
+          case 'game-created':
+            toast.success("Game created! Waiting for opponent to join.");
+            dispatch({
+              type: 'CREATE_MULTIPLAYER_GAME',
+              gameCode: data.gameId,
+              isHost: data.isHost
+            });
+            break;
+            
+          case 'game-joined':
+            toast.success(`${data.opponentName} joined the game!`);
+            dispatch({
+              type: 'JOIN_MULTIPLAYER_GAME',
+              gameCode: data.gameId,
+              opponentName: data.opponentName,
+              isHost: data.isHost
+            });
+            break;
+            
+          case 'opponent-joined':
+            toast.success(`${data.opponentName} joined the game!`);
+            dispatch({
+              type: 'SET_OPPONENT_NAME',
+              name: data.opponentName
+            });
+            break;
+            
+          case 'opponent-move':
+            dispatch({
+              type: 'OPPONENT_MOVE',
+              boardIndex: data.boardIndex,
+              cellIndex: data.cellIndex
+            });
+            break;
+            
+          case 'opponent-left':
+            toast.error("Your opponent has left the game.");
+            break;
+            
+          case 'error':
+            toast.error(`Error: ${data.message}`);
+            break;
+        }
+      });
       
-      // Simulate connection establishment
-      if (state.isHost) {
-        toast({
-          title: "Waiting for opponent...",
-          description: `Share code: ${state.gameCode}`,
-        });
-      } else {
-        // Simulate joining a game
-        connectionTimer = setTimeout(() => {
-          toast({
-            title: "Connecting to game...",
-            description: `Attempting to join game: ${state.gameCode}`,
-          });
-          
-          // In a real implementation, this would actually connect to a server
-          toast({
-            title: "Multiplayer mode is coming soon!",
-            description: "This feature is still in development.",
-          });
-        }, 1500);
-      }
-      
+      // Clean up the listener when unmounting
       return () => {
-        clearTimeout(connectionTimer);
+        removeListener();
+        multiplayerService.leaveGame();
       };
     }
-  }, [state.multiplayerMode, state.gameCode, state.isHost]);
+  }, [state.multiplayerMode]);
   
   // Convenience functions
   const makeMove = (boardIndex: number, cellIndex: number) => {
@@ -867,11 +918,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const createMultiplayerGame = (gameCode: string) => {
-    dispatch({ type: 'CREATE_MULTIPLAYER_GAME', gameCode });
+    dispatch({ type: 'CREATE_MULTIPLAYER_GAME', gameCode, isHost: true });
   };
   
   const joinMultiplayerGame = (gameCode: string) => {
-    dispatch({ type: 'JOIN_MULTIPLAYER_GAME', gameCode });
+    dispatch({ type: 'JOIN_MULTIPLAYER_GAME', gameCode, opponentName: null, isHost: false });
   };
 
   const contextValue = {
