@@ -21,13 +21,20 @@ import { Progress } from '@/components/ui/progress';
 import { useTheme } from '@/hooks/use-theme';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 
 interface GameControlsProps {
   onOpenSettings: () => void;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
-  const { state, restartGame, startGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound, toggleBotMode, stopGame } = useGame();
+  const { state, restartGame, startGame, pauseGame, resumeGame, undoMove, redoMove, toggleSound, toggleBotMode, stopGame, updateSettings } = useGame();
   const { theme, setTheme } = useTheme();
   
   const { 
@@ -39,11 +46,28 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
     moveHistory,
     currentMoveIndex,
     playerSymbols,
-    botMode
+    botMode,
+    difficulty
   } = state;
   
   const timePercentage = (turnTimeRemaining / turnTimeLimit) * 100;
   const isTimeLow = turnTimeRemaining <= 5;
+  
+  const handleDifficultyChange = (value: 'easy' | 'medium' | 'hard') => {
+    updateSettings({
+      ...state,
+      difficulty: value,
+      turnTimeLimit: state.turnTimeLimit,
+      timerEnabled: state.timerEnabled,
+      playerSymbols: state.playerSymbols,
+      botMode: state.botMode
+    });
+  };
+  
+  const handleBotModeToggle = (enabled: boolean) => {
+    // Call the existing toggleBotMode function
+    toggleBotMode();
+  };
   
   return (
     <div className="flex flex-col gap-4 glass-card p-4 rounded-lg">
@@ -175,16 +199,41 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
           <Switch
             id="bot-mode"
             checked={botMode}
-            onCheckedChange={toggleBotMode}
+            onCheckedChange={handleBotModeToggle}
             aria-label="Toggle bot mode"
           />
         </div>
         
         {botMode && (
-          <div className="bg-muted/50 p-2 rounded-md">
-            <p className="text-xs text-muted-foreground">
-              Bot will play as O. You play as X. {gameStatus === 'init' ? "Click Start Game to begin." : ""}
-            </p>
+          <div className="space-y-3">
+            <div className="bg-muted/50 p-2 rounded-md">
+              <p className="text-xs text-muted-foreground">
+                Bot will play as O. You play as X. {gameStatus === 'init' ? "Click Start Game to begin." : ""}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="difficulty-select" className="text-sm">Bot Difficulty</Label>
+              <Select 
+                value={difficulty} 
+                onValueChange={handleDifficultyChange}
+              >
+                <SelectTrigger id="difficulty-select" className="w-full">
+                  <SelectValue placeholder="Select difficulty" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy">Easy (Random Moves)</SelectItem>
+                  <SelectItem value="medium">Medium (Basic Strategy)</SelectItem>
+                  <SelectItem value="hard">Hard (Advanced Strategy)</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <div className="mt-1 p-2 bg-muted/30 rounded text-xs text-muted-foreground">
+                {difficulty === 'easy' && "The bot will make random moves, suitable for beginners."}
+                {difficulty === 'medium' && "The bot will use basic strategy to win or block your winning moves."}
+                {difficulty === 'hard' && "The bot will use advanced strategy, focusing on optimal positions and forks."}
+              </div>
+            </div>
           </div>
         )}
       </div>

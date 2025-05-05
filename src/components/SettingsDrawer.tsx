@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Drawer, 
   DrawerClose, 
@@ -24,12 +23,25 @@ interface SettingsDrawerProps {
 const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ open, onClose }) => {
   const { state, updateSettings } = useGame();
   
+  // Use state from gameContext directly to ensure sync
   const [timeLimit, setTimeLimit] = useState(state.turnTimeLimit);
   const [timerEnabled, setTimerEnabled] = useState(state.timerEnabled);
   const [xSymbol, setXSymbol] = useState(state.playerSymbols.X);
   const [oSymbol, setOSymbol] = useState(state.playerSymbols.O);
   const [botMode, setBotMode] = useState(state.botMode);
   const [difficulty, setDifficulty] = useState(state.difficulty);
+  
+  // Update local state whenever the drawer opens or game state changes
+  useEffect(() => {
+    if (open) {
+      setTimeLimit(state.turnTimeLimit);
+      setTimerEnabled(state.timerEnabled);
+      setXSymbol(state.playerSymbols.X);
+      setOSymbol(state.playerSymbols.O);
+      setBotMode(state.botMode);
+      setDifficulty(state.difficulty);
+    }
+  }, [open, state.botMode, state.difficulty, state.playerSymbols, state.timerEnabled, state.turnTimeLimit]);
   
   const handleSave = () => {
     updateSettings({
