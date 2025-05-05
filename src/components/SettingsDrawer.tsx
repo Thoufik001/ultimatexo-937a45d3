@@ -75,11 +75,17 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ open, onClose }) => {
                       <SelectValue placeholder="Select difficulty" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
+                      <SelectItem value="easy">Easy (Random Moves)</SelectItem>
+                      <SelectItem value="medium">Medium (Basic Strategy)</SelectItem>
+                      <SelectItem value="hard">Hard (Advanced Strategy)</SelectItem>
                     </SelectContent>
                   </Select>
+                  
+                  <div className="mt-2 p-2 bg-muted/30 rounded text-xs text-muted-foreground">
+                    {difficulty === 'easy' && "The bot will make random moves, suitable for beginners."}
+                    {difficulty === 'medium' && "The bot will use basic strategy to win or block your winning moves."}
+                    {difficulty === 'hard' && "The bot will use advanced strategy, focusing on optimal positions and forks."}
+                  </div>
                 </div>
               )}
             </div>

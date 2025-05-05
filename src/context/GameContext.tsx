@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
@@ -122,7 +123,7 @@ const playSound = (soundType: 'move' | 'win' | 'gameOver' | 'timeWarning', isMut
   // audio.play();
 };
 
-// Improved bot move logic with winning strategy
+// Enhanced bot move logic with different difficulty levels
 const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: number | null, difficulty: string): { boardIndex: number; cellIndex: number } => {
   // Find all valid boards to play on
   const validBoardIndices: number[] = [];
@@ -140,7 +141,22 @@ const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: nu
   let boardIndex = validBoardIndices[Math.floor(Math.random() * validBoardIndices.length)];
   let cellIndex = -1;
   
-  // Check each valid board for strategic moves based on difficulty
+  // Easy mode: Just make random moves
+  if (difficulty === 'easy') {
+    // Find all empty cells on the selected board
+    const emptyCellIndices: number[] = [];
+    boards[boardIndex].forEach((cell, index) => {
+      if (cell === null) {
+        emptyCellIndices.push(index);
+      }
+    });
+    
+    // Choose a random empty cell
+    cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
+    return { boardIndex, cellIndex };
+  }
+  
+  // Medium and Hard mode strategies
   if (difficulty === 'medium' || difficulty === 'hard') {
     // Try to find a winning move in any valid board first
     for (const bIndex of validBoardIndices) {
@@ -165,7 +181,48 @@ const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: nu
     }
   }
   
-  // If no strategic move found (or on 'easy' difficulty), make a random move
+  // For Hard mode, add more advanced strategies
+  if (difficulty === 'hard' && cellIndex === -1) {
+    // Evaluate the best board to play on using minimax
+    if (validBoardIndices.length > 1) {
+      boardIndex = findBestBoard(validBoardIndices, boards, boardStatus);
+    }
+    
+    // Find all empty cells on the selected board
+    const emptyCellIndices: number[] = [];
+    boards[boardIndex].forEach((cell, index) => {
+      if (cell === null) {
+        emptyCellIndices.push(index);
+      }
+    });
+    
+    // Prefer center
+    if (emptyCellIndices.includes(4)) {
+      cellIndex = 4;
+    } 
+    // Then corners
+    else if (emptyCellIndices.some(i => [0, 2, 6, 8].includes(i))) {
+      const corners = emptyCellIndices.filter(i => [0, 2, 6, 8].includes(i));
+      cellIndex = corners[Math.floor(Math.random() * corners.length)];
+    } 
+    // Then edges
+    else {
+      const edges = emptyCellIndices.filter(i => [1, 3, 5, 7].includes(i));
+      cellIndex = edges[Math.floor(Math.random() * edges.length)];
+    }
+    
+    // Try to find a strategic cell that sends opponent to a won board or a full board
+    if (emptyCellIndices.length > 1) {
+      for (const cell of emptyCellIndices) {
+        if (boardStatus[cell] !== null) {
+          cellIndex = cell;
+          break;
+        }
+      }
+    }
+  }
+  
+  // If no strategic move found, make a random move
   if (cellIndex === -1) {
     // Find all empty cells on the selected board
     const emptyCellIndices: number[] = [];
@@ -175,28 +232,38 @@ const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: nu
       }
     });
     
-    // If hard mode and no immediate win/block, try to take center or corners
-    if (difficulty === 'hard' && emptyCellIndices.length > 1) {
-      // Prefer center
-      if (emptyCellIndices.includes(4)) {
-        cellIndex = 4;
-      } 
-      // Then corners
-      else if (emptyCellIndices.some(i => [0, 2, 6, 8].includes(i))) {
-        const corners = emptyCellIndices.filter(i => [0, 2, 6, 8].includes(i));
-        cellIndex = corners[Math.floor(Math.random() * corners.length)];
-      } 
-      // Then edges
-      else {
-        cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
-      }
-    } else {
-      // For easy mode or fallback, just pick randomly
-      cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
-    }
+    // Choose a random empty cell
+    cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
   }
   
   return { boardIndex, cellIndex };
+};
+
+// Find the best board to play on using simple heuristic evaluation
+const findBestBoard = (validBoardIndices: number[], boards: Boards, boardStatus: BoardStatus): number => {
+  let bestScore = -Infinity;
+  let bestBoardIndex = validBoardIndices[0];
+  
+  for (const boardIndex of validBoardIndices) {
+    // More empty cells is better (more options)
+    const emptyCount = boards[boardIndex].filter(cell => cell === null).length;
+    
+    // Having own cells already on the board is good
+    const ownCellCount = boards[boardIndex].filter(cell => cell === 'O').length;
+    
+    // Having opponent's cells on the board is bad
+    const opponentCellCount = boards[boardIndex].filter(cell => cell === 'X').length;
+    
+    // Calculate a simple score
+    const score = emptyCount + (ownCellCount * 2) - opponentCellCount;
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestBoardIndex = boardIndex;
+    }
+  }
+  
+  return bestBoardIndex;
 };
 
 // Helper function to find a winning move for a player
@@ -217,6 +284,44 @@ const findWinningMove = (board: Array<Player>, player: Player): number => {
   }
   
   return -1; // No winning move found
+};
+
+// Find a fork opportunity (two potential winning moves)
+const findForkMove = (board: Array<Player>, player: Player): number => {
+  // Empty positions
+  const emptyCells = board
+    .map((cell, index) => cell === null ? index : -1)
+    .filter(index => index !== -1);
+    
+  // Try each empty cell and see if it creates a fork
+  for (const index of emptyCells) {
+    // Create a copy of the board with the move
+    const boardCopy = [...board];
+    boardCopy[index] = player;
+    
+    // Count potential winning moves after this move
+    let winningMovesCount = 0;
+    const lines = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+      [0, 4, 8], [2, 4, 6]             // diagonals
+    ];
+    
+    for (const [a, b, c] of lines) {
+      const cells = [boardCopy[a], boardCopy[b], boardCopy[c]];
+      if (cells.filter(cell => cell === player).length === 2 && 
+          cells.filter(cell => cell === null).length === 1) {
+        winningMovesCount++;
+      }
+    }
+    
+    // If this move creates two or more potential winning moves, it's a fork
+    if (winningMovesCount >= 2) {
+      return index;
+    }
+  }
+  
+  return -1; // No fork move found
 };
 
 const gameReducer = (state: GameState, action: GameAction): GameState => {
