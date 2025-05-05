@@ -17,7 +17,7 @@ import multiplayerService from '@/services/MultiplayerService';
 import { toast } from 'sonner';
 
 const MultiplayerButton: React.FC = () => {
-  const { state, updateSettings, createMultiplayerGame, joinMultiplayerGame } = useGame();
+  const { state, updateSettings } = useGame();
   const [showDialog, setShowDialog] = useState(false);
   const [gameCode, setGameCode] = useState('');
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
@@ -50,6 +50,7 @@ const MultiplayerButton: React.FC = () => {
     
     multiplayerService.createGame(playerName);
     setShowDialog(false);
+    toast.info("Creating game...");
   };
   
   const handleJoinGame = () => {
@@ -76,6 +77,7 @@ const MultiplayerButton: React.FC = () => {
     
     multiplayerService.joinGame(gameCode, playerName);
     setShowDialog(false);
+    toast.info("Joining game...");
   };
 
   return (

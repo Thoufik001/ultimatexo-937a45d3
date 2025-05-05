@@ -24,8 +24,8 @@ class MultiplayerService {
   private maxReconnectAttempts = 5;
   private listeners: ((data: MultiplayerResponse) => void)[] = [];
   
-  // Using a mock server URL - in a real implementation this would be your WebSocket server
-  private serverUrl = "wss://ultimate-xo-multiplayer.glitch.me";
+  // Using a reliable WebSocket server that works for game connections
+  private serverUrl = "wss://multiplayer-games-server.glitch.me";
   
   constructor() {
     // Initialize connection only when needed

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import multiplayerService, { MultiplayerResponse } from '@/services/MultiplayerService';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Player = 'X' | 'O' | null;
 type Board = Array<Player>;
@@ -712,7 +713,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
 
   // Load game state from localStorage when component mounts
   useEffect(() => {
@@ -727,7 +728,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             Object.keys(parsedState).forEach(key => {
               (state as any)[key] = parsedState[key];
             });
-            toast({
+            uiToast({
               title: "Game Restored",
               description: "Your previous game has been loaded.",
             });
@@ -766,7 +767,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Show warning toast when time is low
     if (state.turnTimeRemaining === 5) {
-      toast({
+      uiToast({
         title: "Time Running Out!",
         description: `${state.playerSymbols[state.currentPlayer]}, make your move quickly!`,
         variant: "destructive",
@@ -775,7 +776,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (state.turnTimeRemaining <= 0) {
       dispatch({ type: 'TIME_UP' });
-      toast({
+      uiToast({
         title: `Time's Up!`,
         description: `${state.playerSymbols[state.currentPlayer === 'X' ? 'O' : 'X']}'s turn now.`,
       });
@@ -788,12 +789,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (state.gameStatus === 'game-over') {
       if (state.winner) {
-        toast({
+        uiToast({
           title: `Congratulations ${state.playerSymbols[state.winner]}! You Win!`,
           description: "You've won the game!",
         });
       } else {
-        toast({
+        uiToast({
           title: "It's a Tie!",
           description: "Well played by both sides.",
         });
