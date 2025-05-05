@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +24,11 @@ interface GameState {
   playerSymbols: Record<string, string>;
   botMode: boolean;
   difficulty: 'easy' | 'medium' | 'hard';
+  multiplayerMode: boolean;
+  playerName: string;
+  gameCode: string;
+  opponentName: string | null;
+  isHost: boolean;
 }
 
 interface GameSettings {
@@ -33,6 +37,8 @@ interface GameSettings {
   playerSymbols: Record<string, string>;
   botMode: boolean;
   difficulty: 'easy' | 'medium' | 'hard';
+  multiplayerMode?: boolean;
+  playerName?: string;
 }
 
 type GameAction = 
@@ -50,7 +56,11 @@ type GameAction =
   | { type: 'HIDE_CONFETTI' }
   | { type: 'BOT_MOVE' }
   | { type: 'TOGGLE_BOT_MODE' }
-  | { type: 'UPDATE_SETTINGS'; settings: GameSettings };
+  | { type: 'UPDATE_SETTINGS'; settings: GameSettings }
+  | { type: 'OPPONENT_MOVE'; boardIndex: number; cellIndex: number }
+  | { type: 'CREATE_MULTIPLAYER_GAME'; gameCode: string }
+  | { type: 'JOIN_MULTIPLAYER_GAME'; gameCode: string }
+  | { type: 'SET_OPPONENT_NAME'; name: string };
 
 interface GameContextType {
   state: GameState;
@@ -65,6 +75,8 @@ interface GameContextType {
   toggleSound: () => void;
   toggleBotMode: () => void;
   updateSettings: (settings: GameSettings) => void;
+  createMultiplayerGame: (gameCode: string) => void;
+  joinMultiplayerGame: (gameCode: string) => void;
 }
 
 const initialBoard = Array(9).fill(null);
@@ -87,7 +99,12 @@ const initialState: GameState = {
   timerEnabled: true,
   playerSymbols: { 'X': 'X', 'O': 'O' },
   botMode: false,
-  difficulty: 'medium'
+  difficulty: 'medium',
+  multiplayerMode: false,
+  playerName: '',
+  gameCode: '',
+  opponentName: null,
+  isHost: false
 };
 
 // Helper function to check if a player has won on a board
@@ -490,7 +507,11 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         playerSymbols: state.playerSymbols,
         botMode: state.botMode,
         difficulty: state.difficulty,
-        gameStatus: 'init'  // Ensure game returns to init state
+        multiplayerMode: state.multiplayerMode,
+        playerName: state.playerName,
+        gameCode: state.gameCode,
+        opponentName: state.opponentName,
+        isHost: state.isHost
       };
     }
     
@@ -561,6 +582,89 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
     }
     
+    case 'OPPONENT_MOVE': {
+      const { boardIndex, cellIndex } = action;
+      
+      // Similar to MAKE_MOVE but for opponent's move received via multiplayer
+      if (state.gameStatus !== 'playing') {
+        return state;
+      }
+      
+      const newBoards = state.boards.map((board, idx) => 
+        idx === boardIndex ? [...board] : board
+      );
+      newBoards[boardIndex][cellIndex] = state.currentPlayer;
+      
+      const boardWinner = checkWinner(newBoards[boardIndex]);
+      const newBoardStatus = [...state.boardStatus];
+      
+      if (boardWinner !== null) {
+        newBoardStatus[boardIndex] = boardWinner;
+        playSound('win', state.isMuted);
+      } else if (!newBoards[boardIndex].includes(null)) {
+        newBoardStatus[boardIndex] = null;
+      }
+      
+      let nextBoard = cellIndex;
+      if (newBoardStatus[nextBoard] !== null) {
+        nextBoard = null;
+      }
+      
+      const gameWinner = checkWinner(newBoardStatus);
+      const gameOver = gameWinner !== null || !newBoardStatus.includes(null);
+      
+      const newHistory = state.moveHistory.slice(0, state.currentMoveIndex + 1);
+      newHistory.push({
+        boards: state.boards,
+        boardStatus: state.boardStatus,
+        boardIndex,
+        cellIndex
+      });
+      
+      playSound('move', state.isMuted);
+      
+      return {
+        ...state,
+        boards: newBoards,
+        boardStatus: newBoardStatus,
+        currentPlayer: state.currentPlayer === 'X' ? 'O' : 'X',
+        nextBoardIndex: nextBoard,
+        gameStatus: gameOver ? 'game-over' : state.gameStatus,
+        winner: gameWinner,
+        turnTimeRemaining: state.turnTimeLimit,
+        moveHistory: newHistory,
+        currentMoveIndex: state.currentMoveIndex + 1,
+        showConfetti: gameWinner !== null
+      };
+    }
+    
+    case 'CREATE_MULTIPLAYER_GAME': {
+      return {
+        ...state,
+        multiplayerMode: true,
+        botMode: false,
+        gameCode: action.gameCode,
+        isHost: true
+      };
+    }
+    
+    case 'JOIN_MULTIPLAYER_GAME': {
+      return {
+        ...state,
+        multiplayerMode: true,
+        botMode: false,
+        gameCode: action.gameCode,
+        isHost: false
+      };
+    }
+    
+    case 'SET_OPPONENT_NAME': {
+      return {
+        ...state,
+        opponentName: action.name
+      };
+    }
+    
     case 'UPDATE_SETTINGS': {
       return {
         ...state,
@@ -569,7 +673,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         timerEnabled: action.settings.timerEnabled,
         playerSymbols: action.settings.playerSymbols,
         botMode: action.settings.botMode,
-        difficulty: action.settings.difficulty
+        difficulty: action.settings.difficulty,
+        multiplayerMode: action.settings.multiplayerMode || state.multiplayerMode,
+        playerName: action.settings.playerName || state.playerName
       };
     }
     
@@ -682,6 +788,39 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state.showConfetti]);
 
+  // Mock websocket connection effect for multiplayer
+  useEffect(() => {
+    if (state.multiplayerMode && state.gameCode) {
+      let connectionTimer: ReturnType<typeof setTimeout>;
+      
+      // Simulate connection establishment
+      if (state.isHost) {
+        toast({
+          title: "Waiting for opponent...",
+          description: `Share code: ${state.gameCode}`,
+        });
+      } else {
+        // Simulate joining a game
+        connectionTimer = setTimeout(() => {
+          toast({
+            title: "Connecting to game...",
+            description: `Attempting to join game: ${state.gameCode}`,
+          });
+          
+          // In a real implementation, this would actually connect to a server
+          toast({
+            title: "Multiplayer mode is coming soon!",
+            description: "This feature is still in development.",
+          });
+        }, 1500);
+      }
+      
+      return () => {
+        clearTimeout(connectionTimer);
+      };
+    }
+  }, [state.multiplayerMode, state.gameCode, state.isHost]);
+  
   // Convenience functions
   const makeMove = (boardIndex: number, cellIndex: number) => {
     dispatch({ type: 'MAKE_MOVE', boardIndex, cellIndex });
@@ -727,6 +866,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'UPDATE_SETTINGS', settings });
   };
 
+  const createMultiplayerGame = (gameCode: string) => {
+    dispatch({ type: 'CREATE_MULTIPLAYER_GAME', gameCode });
+  };
+  
+  const joinMultiplayerGame = (gameCode: string) => {
+    dispatch({ type: 'JOIN_MULTIPLAYER_GAME', gameCode });
+  };
+
   const contextValue = {
     state,
     makeMove,
@@ -739,7 +886,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     stopGame,
     toggleSound,
     toggleBotMode,
-    updateSettings
+    updateSettings,
+    createMultiplayerGame,
+    joinMultiplayerGame
   };
 
   return (

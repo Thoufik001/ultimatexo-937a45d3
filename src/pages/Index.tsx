@@ -41,9 +41,7 @@ const Game: React.FC = () => {
   };
   
   const handleMultiplayerClick = () => {
-    toast("Online multiplayer coming soon!", {
-      description: "This feature will be available in the next update.",
-    });
+    setShowSettings(true);
   };
   
   return (
@@ -59,8 +57,30 @@ const Game: React.FC = () => {
             onClick={handleMultiplayerClick}
           >
             <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
-            <span>Play Online Multiplayer</span>
+            <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Online Multiplayer'}</span>
           </Button>
+          
+          {state.multiplayerMode && state.gameCode && (
+            <div className="glass-card p-4 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">Game Information</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Game Code:</span>
+                  <span className="font-mono font-medium">{state.gameCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Your Name:</span>
+                  <span className="font-medium">{state.playerName || 'Player'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Status:</span>
+                  <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full">
+                    {state.opponentName ? 'Connected' : 'Waiting for opponent...'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="glass-card p-4 rounded-lg">
             <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
@@ -77,6 +97,20 @@ const Game: React.FC = () => {
         {/* Right Column - Game Board */}
         <div className="w-full lg:w-2/3">
           <GameBoard />
+          
+          {state.multiplayerMode && (
+            <div className="flex justify-between items-center mt-4 p-2 rounded-md bg-muted/30">
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${state.currentPlayer === 'X' ? 'bg-green-500' : 'bg-muted'}`}></div>
+                <span>{state.playerName || 'You'} ({state.playerSymbols.X})</span>
+              </div>
+              <span className="text-xs text-muted-foreground">VS</span>
+              <div className="flex items-center space-x-2">
+                <span>{state.opponentName || 'Opponent'} ({state.playerSymbols.O})</span>
+                <div className={`w-3 h-3 rounded-full ${state.currentPlayer === 'O' ? 'bg-green-500' : 'bg-muted'}`}></div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
