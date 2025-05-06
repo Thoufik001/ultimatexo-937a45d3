@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
@@ -20,9 +19,10 @@ import { Badge } from "@/components/ui/badge";
 
 interface GameControlsProps {
   onOpenSettings: () => void;
+  onRestart?: () => void; // Add this prop to fix the type error
 }
 
-const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
+const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }) => {
   const { 
     state, 
     startGame, 
@@ -45,7 +45,11 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings }) => {
   };
   
   const handleRestart = () => {
-    restartGame();
+    if (onRestart) {
+      onRestart(); // Use the passed prop if available
+    } else {
+      restartGame(); // Otherwise use the context function
+    }
   };
   
   const toggleBot = () => {
