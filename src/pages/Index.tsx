@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Copy, Link, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const Game: React.FC = () => {
   const {
@@ -45,9 +45,16 @@ const Game: React.FC = () => {
     setShowSettings(true);
   };
   
-  const handleRestart = () => {
+  // Force a complete game restart when confirmed
+  const handleRestartConfirmed = () => {
     restartGame();
     setShowRestartDialog(false);
+    toast.success("Game restarted!");
+  };
+  
+  // Show confirmation before restarting
+  const handleRestartRequested = () => {
+    setShowRestartDialog(true);
   };
   
   const copyGameCode = () => {
@@ -63,8 +70,8 @@ const Game: React.FC = () => {
         {/* Left Column - Controls and Info */}
         <div className="w-full lg:w-1/3 flex flex-col gap-4">
           <GameControls 
-            onOpenSettings={handleOpenSettings} 
-            onRestart={() => setShowRestartDialog(true)} 
+            onOpenSettings={handleOpenSettings}
+            onRestart={handleRestartRequested}
           />
           
           <Tabs defaultValue="multiplayer" className="w-full">
@@ -127,13 +134,18 @@ const Game: React.FC = () => {
                     className="w-full" 
                     variant="outline" 
                     onClick={() => {
-                      navigator.share({
-                        title: 'Join my Ultimate XO game!',
-                        text: `Join my game with code: ${state.gameCode}`,
-                        url: window.location.href,
-                      }).catch(() => {
+                      if (navigator.share) {
+                        navigator.share({
+                          title: 'Join my Ultimate XO game!',
+                          text: `Join my game with code: ${state.gameCode}`,
+                          url: window.location.href,
+                        }).catch(() => {
+                          copyGameCode();
+                        });
+                      } else {
                         copyGameCode();
-                      });
+                        toast.success("Game code copied! Send it to your friend to join.");
+                      }
                     }}
                   >
                     <Link className="mr-2 h-4 w-4" />
@@ -187,6 +199,7 @@ const Game: React.FC = () => {
       <SettingsDrawer open={showSettings} onClose={() => setShowSettings(false)} />
       <Confetti active={state.showConfetti} />
       
+      {/* Restart Confirmation Dialog */}
       <AlertDialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -197,7 +210,7 @@ const Game: React.FC = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestart}>Restart</AlertDialogAction>
+            <AlertDialogAction onClick={handleRestartConfirmed}>Restart</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

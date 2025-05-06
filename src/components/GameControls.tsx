@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface GameControlsProps {
   onOpenSettings: () => void;
-  onRestart?: () => void; // Add this prop to fix the type error
+  onRestart: () => void; // Changed from optional to required
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }) => {
@@ -28,7 +28,6 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     startGame, 
     pauseGame, 
     resumeGame, 
-    restartGame, 
     toggleSound,
     toggleBotMode,
     updateSettings
@@ -44,12 +43,9 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     }
   };
   
+  // Always use the passed onRestart prop to ensure proper state reset
   const handleRestart = () => {
-    if (onRestart) {
-      onRestart(); // Use the passed prop if available
-    } else {
-      restartGame(); // Otherwise use the context function
-    }
+    onRestart();
   };
   
   const toggleBot = () => {
