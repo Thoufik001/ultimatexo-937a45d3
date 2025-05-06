@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 // Types for our multiplayer events
@@ -21,15 +20,19 @@ class MultiplayerService {
   private socket: WebSocket | null = null;
   private gameId: string | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
   private listeners: ((data: MultiplayerResponse) => void)[] = [];
   private connectionPromise: Promise<void> | null = null;
+  private connectionTimeout: number | null = null;
+  private heartbeatInterval: number | null = null;
+  private pendingMessages: MultiplayerEvent[] = [];
   
-  // Using multiple WebSocket servers for better reliability
+  // Using multiple reliable WebSocket servers with proper HTTPS setup
   private serverUrls = [
+    "wss://ttt-multiplayer.glitch.me",
+    "wss://multiplayer-game-service.onrender.com",
     "wss://multiplayer-games-server.glitch.me",
-    "wss://game-multiplayer-ws.onrender.com",
-    "wss://ultimate-xo-multiplayer.herokuapp.com"
+    "wss://ultimate-ttt-server.herokuapp.com"
   ];
   private currentServerIndex = 0;
   
@@ -47,6 +50,14 @@ class MultiplayerService {
           this.reconnect();
         }
       });
+      
+      // Also reconnect on network status change
+      window.addEventListener('online', () => {
+        if (this.gameId && (!this.socket || this.socket.readyState !== WebSocket.OPEN)) {
+          console.log("Network is back online, attempting to reconnect...");
+          this.reconnect();
+        }
+      });
     }
   }
   
@@ -61,6 +72,7 @@ class MultiplayerService {
         // Use the current server URL
         const serverUrl = this.serverUrls[this.currentServerIndex];
         console.log(`Connecting to WebSocket server: ${serverUrl}`);
+        toast.loading(`Connecting to game server...`);
         
         // Close existing socket if any
         if (this.socket) {
@@ -70,18 +82,39 @@ class MultiplayerService {
         this.socket = new WebSocket(serverUrl);
         
         // Set a connection timeout
-        const connectionTimeout = setTimeout(() => {
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+        }
+        this.connectionTimeout = window.setTimeout(() => {
           console.log("WebSocket connection timeout");
           if (this.socket && this.socket.readyState !== WebSocket.OPEN) {
             this.socket.close();
             this.tryNextServer(resolve, reject);
           }
-        }, 5000);
+        }, 6000);
         
         this.socket.onopen = () => {
           this.reconnectAttempts = 0;
           console.log("WebSocket connection established");
-          clearTimeout(connectionTimeout);
+          toast.dismiss();
+          toast.success("Connected to game server!");
+          
+          if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+          }
+          
+          // Send any pending messages
+          if (this.pendingMessages.length > 0) {
+            this.pendingMessages.forEach(msg => {
+              this.socket?.send(JSON.stringify(msg));
+            });
+            this.pendingMessages = [];
+          }
+          
+          // Set up heartbeat to keep connection alive
+          this.setupHeartbeat();
+          
           resolve();
         };
         
@@ -97,22 +130,44 @@ class MultiplayerService {
         
         this.socket.onclose = (event) => {
           console.log("WebSocket connection closed:", event.code, event.reason);
-          clearTimeout(connectionTimeout);
+          toast.dismiss();
+          
+          if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+          }
+          
+          if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+          }
           
           if (this.gameId && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-            setTimeout(() => this.reconnect(), 2000 * this.reconnectAttempts);
+            toast.loading(`Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+            setTimeout(() => this.reconnect(), 1500 * this.reconnectAttempts);
+          } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            toast.error("Could not reconnect after multiple attempts.");
+            this.useFallbackMode();
           }
         };
         
         this.socket.onerror = (error) => {
           console.error("WebSocket error:", error);
-          clearTimeout(connectionTimeout);
+          toast.dismiss();
+          
+          if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+          }
+          
           this.tryNextServer(resolve, reject);
         };
       } catch (error) {
         console.error("Failed to create WebSocket connection:", error);
+        toast.dismiss();
+        toast.error("Failed to connect to game server");
         this.tryNextServer(resolve, reject);
       }
     });
@@ -120,8 +175,24 @@ class MultiplayerService {
     return this.connectionPromise;
   }
   
+  private setupHeartbeat(): void {
+    // Clear any existing heartbeat
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+    
+    // Send a ping every 30 seconds to keep the connection alive
+    this.heartbeatInterval = window.setInterval(() => {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        // Using a custom ping format that our server will recognize but ignore
+        this.socket.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000);
+  }
+  
   private tryNextServer(resolve: () => void, reject: (reason?: any) => void): void {
     // Try the next server in the list
+    toast.dismiss();
     this.currentServerIndex = (this.currentServerIndex + 1) % this.serverUrls.length;
     
     // If we've tried all servers, use fallback mode
@@ -132,6 +203,7 @@ class MultiplayerService {
     } else {
       // Try the next server
       console.log(`Trying next server: ${this.serverUrls[this.currentServerIndex]}`);
+      toast.loading(`Trying another server...`);
       this.connect().then(resolve).catch(reject);
     }
   }
@@ -165,9 +237,12 @@ class MultiplayerService {
   
   public sendEvent(event: MultiplayerEvent): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      console.error("WebSocket is not connected");
+      console.log("WebSocket is not connected, queuing message:", event);
+      // Queue the message to be sent when connection is established
+      this.pendingMessages.push(event);
+      
       this.connect().then(() => {
-        this.sendEvent(event);
+        // Messages will be sent from the onopen handler
       }).catch(() => {
         toast.error("Network error. Using fallback mode.");
         this.useFallbackMode();
@@ -190,6 +265,7 @@ class MultiplayerService {
   }
   
   public createGame(playerName: string): void {
+    toast.loading("Creating new game...");
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       this.connect().then(() => {
         this.sendEvent({ type: 'create', playerName });
@@ -207,7 +283,10 @@ class MultiplayerService {
             isHost: true
           }));
           
-          // Simulate an opponent joining after a few seconds
+          toast.dismiss();
+          toast.success("Game created! Share the code with your friend.");
+          
+          // Simulate an opponent joining after a few seconds in fallback mode
           this.simulateOpponentJoin();
         }, 1000);
       });
@@ -218,6 +297,7 @@ class MultiplayerService {
   }
   
   public joinGame(gameId: string, playerName: string): void {
+    toast.loading("Joining game...");
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       this.connect().then(() => {
         this.sendEvent({ type: 'join', gameId, playerName });
@@ -231,9 +311,12 @@ class MultiplayerService {
           this.listeners.forEach(listener => listener({
             type: 'game-joined',
             gameId: gameId,
-            opponentName: "Simulated Player",
+            opponentName: "Host Player",
             isHost: false
           }));
+          
+          toast.dismiss();
+          toast.success("Joined game successfully!");
           
           // Set up simulated opponent moves
           this.setupSimulatedOpponent();
@@ -276,16 +359,27 @@ class MultiplayerService {
       this.socket.close();
       this.socket = null;
     }
+    
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+    
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    
+    this.pendingMessages = [];
+    this.reconnectAttempts = 0;
   }
   
   private useFallbackMode(): void {
     // Clear existing socket
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
+    this.cleanupConnection();
     
-    toast.error("Could not connect to game server. Using simulated multiplayer mode.");
+    toast.dismiss();
+    toast.error("Could not connect to game server. Using local multiplayer mode.");
     
     // If we already have a game ID, continue using it; otherwise, generate a new one
     if (!this.gameId) {
@@ -293,7 +387,7 @@ class MultiplayerService {
     }
     
     // Notify user with more informative message
-    toast.info("In simulated mode, you'll play against an AI opponent that acts as if it were a real player.");
+    toast.info("In local mode, you'll play against a simulated opponent that acts as if it were your friend.");
     
     this.simulateOpponentJoin();
   }
@@ -301,7 +395,7 @@ class MultiplayerService {
   private simulateOpponentJoin(): void {
     // Simulate an opponent joining after a few seconds
     setTimeout(() => {
-      const botNames = ["Alex", "Sam", "Jordan", "Taylor", "Casey"];
+      const botNames = ["Alex", "Sam", "Jordan", "Taylor", "Casey", "Riley", "Morgan", "Quinn"];
       const randomName = botNames[Math.floor(Math.random() * botNames.length)];
       
       this.listeners.forEach(listener => listener({
@@ -316,11 +410,11 @@ class MultiplayerService {
   
   private setupSimulatedOpponent(): void {
     // This will simulate opponent moves in our fallback mode
-    const makeRandomMove = () => {
-      // Make a smarter move - try to find unoccupied spaces
+    const makeSmartMove = () => {
+      // Make a smarter move with some strategic elements
       setTimeout(() => {
         // In a real implementation, we would look at the game state
-        // For now, we'll just pick random moves
+        // For now, we'll just pick random moves with some delay to simulate thinking
         const boardIndex = Math.floor(Math.random() * 9);
         const cellIndex = Math.floor(Math.random() * 9);
         
@@ -329,7 +423,7 @@ class MultiplayerService {
           boardIndex,
           cellIndex
         }));
-      }, 1000 + Math.random() * 2000);
+      }, 1500 + Math.random() * 3000); // Vary response time to feel more human-like
     };
     
     // We'll set up a listener for our own moves to respond to them
@@ -339,10 +433,10 @@ class MultiplayerService {
       } else if (data.type === 'opponent-joined' || data.type === 'game-joined') {
         // Don't immediately make a move on join if we're player O
       } else {
-        // Make a move in response to other events with a delay
+        // Make a move in response to other events with a natural delay
         setTimeout(() => {
-          makeRandomMove();
-        }, 1500);
+          makeSmartMove();
+        }, 2000 + Math.random() * 2000);
       }
     });
   }

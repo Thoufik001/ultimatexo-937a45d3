@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface GameControlsProps {
   onOpenSettings: () => void;
-  onRestart: () => void; // Changed from optional to required
+  onRestart: () => void;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }) => {

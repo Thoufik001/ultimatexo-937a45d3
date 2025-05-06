@@ -511,7 +511,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     
     case 'RESTART': {
       playSound('move', state.isMuted);
-      return {
+      
+      // Complete reset of the game state
+      const newState = {
         ...initialState,
         isMuted: state.isMuted,
         turnTimeLimit: state.turnTimeLimit,
@@ -519,13 +521,28 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         playerSymbols: state.playerSymbols,
         botMode: state.botMode,
         difficulty: state.difficulty,
+        
+        // Keep multiplayer information if in multiplayer mode
         multiplayerMode: state.multiplayerMode,
         playerName: state.playerName,
         gameCode: state.gameCode,
         opponentName: state.opponentName,
         isHost: state.isHost,
-        isMyTurn: true
+        isMyTurn: state.multiplayerMode ? (state.isHost ? true : false) : true
       };
+      
+      // Reset all boards and game status
+      newState.boards = JSON.parse(JSON.stringify(initialBoards));
+      newState.boardStatus = [...initialBoardStatus];
+      newState.nextBoardIndex = null;
+      newState.currentPlayer = 'X';
+      newState.gameStatus = 'init';
+      newState.winner = null;
+      newState.turnTimeRemaining = state.turnTimeLimit;
+      newState.moveHistory = [];
+      newState.currentMoveIndex = -1;
+      
+      return newState;
     }
     
     case 'PAUSE': {

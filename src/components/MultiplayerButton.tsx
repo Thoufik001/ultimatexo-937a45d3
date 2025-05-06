@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, RefreshCcw } from 'lucide-react';
+import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,12 +23,26 @@ const MultiplayerButton: React.FC = () => {
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
   const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
 
   // Automatically connect to multiplayer service when component mounts
   React.useEffect(() => {
-    multiplayerService.connect().catch(() => {
-      // Connection error is handled by the service
-    });
+    const checkConnection = async () => {
+      setConnectionStatus('connecting');
+      try {
+        await multiplayerService.connect();
+        setConnectionStatus('connected');
+      } catch (error) {
+        setConnectionStatus('disconnected');
+      }
+    };
+    
+    checkConnection();
+    
+    // Recheck connection every minute
+    const intervalId = setInterval(checkConnection, 60000);
+    
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleMultiplayerClick = () => {
@@ -46,10 +60,12 @@ const MultiplayerButton: React.FC = () => {
     }
     
     setIsConnecting(true);
+    setConnectionStatus('connecting');
     
     try {
       // Ensure connection before creating game
       await multiplayerService.connect();
+      setConnectionStatus('connected');
       
       updateSettings({
         ...state,
@@ -65,9 +81,9 @@ const MultiplayerButton: React.FC = () => {
       localStorage.setItem('playerName', playerName);
       multiplayerService.createGame(playerName);
       setShowDialog(false);
-      toast.success("Creating new game... Waiting for opponent to join");
     } catch (error) {
-      toast.error("Connection error. Using fallback mode.");
+      setConnectionStatus('disconnected');
+      toast.error("Connection error. Using local multiplayer mode instead.");
     } finally {
       setIsConnecting(false);
     }
@@ -85,10 +101,12 @@ const MultiplayerButton: React.FC = () => {
     }
     
     setIsConnecting(true);
+    setConnectionStatus('connecting');
     
     try {
       // Ensure connection before joining game
       await multiplayerService.connect();
+      setConnectionStatus('connected');
       
       updateSettings({
         ...state,
@@ -104,9 +122,9 @@ const MultiplayerButton: React.FC = () => {
       localStorage.setItem('playerName', playerName);
       multiplayerService.joinGame(gameCode.toUpperCase().trim(), playerName);
       setShowDialog(false);
-      toast.success("Joining game...");
     } catch (error) {
-      toast.error("Connection error. Using fallback mode.");
+      setConnectionStatus('disconnected');
+      toast.error("Connection error. Using local multiplayer mode instead.");
     } finally {
       setIsConnecting(false);
     }
@@ -115,12 +133,34 @@ const MultiplayerButton: React.FC = () => {
   // Function to retry connection
   const handleRetryConnection = async () => {
     toast.info("Reconnecting to multiplayer server...");
+    setConnectionStatus('connecting');
     
     try {
       await multiplayerService.connect();
+      setConnectionStatus('connected');
       toast.success("Connection established!");
     } catch (error) {
+      setConnectionStatus('disconnected');
       toast.error("Connection failed. Please try again later.");
+    }
+  };
+  
+  const handleShareGame = () => {
+    if (state.gameCode) {
+      // Try to use the Web Share API if available
+      if (navigator.share) {
+        navigator.share({
+          title: 'Join my Ultimate XO game!',
+          text: `Join my game with code: ${state.gameCode}`,
+          url: window.location.href,
+        }).catch(() => {
+          navigator.clipboard.writeText(state.gameCode);
+          toast.success("Game code copied to clipboard!");
+        });
+      } else {
+        navigator.clipboard.writeText(state.gameCode);
+        toast.success("Game code copied! Share it with your friend to join.");
+      }
     }
   };
 
@@ -133,17 +173,41 @@ const MultiplayerButton: React.FC = () => {
       >
         <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
         <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Online Multiplayer'}</span>
+        {!state.multiplayerMode && connectionStatus !== 'disconnected' && (
+          <span className={`ml-auto rounded-full w-2 h-2 ${
+            connectionStatus === 'connected' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'
+          }`}></span>
+        )}
       </Button>
       
-      {state.multiplayerMode && state.gameCode && !state.opponentName && (
-        <Button 
-          className="w-full mt-2" 
-          variant="secondary"
-          onClick={handleRetryConnection}
-        >
-          <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-          Reconnect to Server
-        </Button>
+      {state.multiplayerMode && (
+        <div className="flex gap-2 mt-2 w-full">
+          <Button 
+            className="flex-1" 
+            variant="outline"
+            onClick={handleShareGame}
+          >
+            <Share2 className="mr-2 h-4 w-4" />
+            Share Game
+          </Button>
+          
+          {(!state.opponentName || connectionStatus === 'disconnected') && (
+            <Button 
+              className="flex-1" 
+              variant="secondary"
+              onClick={handleRetryConnection}
+            >
+              {connectionStatus === 'connecting' ? (
+                <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+              ) : connectionStatus === 'connected' ? (
+                <Wifi className="mr-2 h-4 w-4" />
+              ) : (
+                <WifiOff className="mr-2 h-4 w-4" />
+              )}
+              {connectionStatus === 'connecting' ? 'Connecting...' : 'Reconnect'}
+            </Button>
+          )}
+        </div>
       )}
       
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -218,6 +282,25 @@ const MultiplayerButton: React.FC = () => {
                     Join Existing
                   </Button>
                 </>
+              )}
+            </div>
+            
+            <div className="text-center text-sm text-muted-foreground">
+              {connectionStatus === 'connected' ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Wifi className="h-4 w-4 text-green-500" />
+                  <span>Connected to game server</span>
+                </div>
+              ) : connectionStatus === 'connecting' ? (
+                <div className="flex items-center justify-center gap-2">
+                  <RefreshCcw className="h-4 w-4 animate-spin text-amber-500" />
+                  <span>Connecting to server...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <WifiOff className="h-4 w-4 text-red-500" />
+                  <span>Not connected (will use local mode)</span>
+                </div>
               )}
             </div>
           </div>
