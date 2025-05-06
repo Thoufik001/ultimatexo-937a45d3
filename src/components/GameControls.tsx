@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,8 @@ import {
   Volume2, 
   VolumeX,
   Bot,
-  RefreshCcw
+  RefreshCcw,
+  Users
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -120,12 +122,18 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
         <div className="grid grid-cols-2 gap-2">
           <Button 
             onClick={handleStart} 
-            disabled={state.gameStatus === 'game-over' || (state.multiplayerMode && !state.opponentName)}
+            disabled={(state.gameStatus === 'game-over' && !state.multiplayerMode) || 
+                     (state.multiplayerMode && !state.opponentName && state.gameStatus !== 'game-over')}
             className="w-full"
           >
             {getActionButtonContent()}
           </Button>
-          <Button onClick={handleRestart} variant="outline" className="w-full">
+          <Button 
+            onClick={handleRestart} 
+            variant="outline" 
+            className="w-full"
+            disabled={state.gameStatus === 'init'}
+          >
             <RotateCcw className="mr-2 h-4 w-4" />
             Restart
           </Button>
@@ -164,7 +172,8 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
             <label htmlFor="bot-mode-control" className="text-sm font-medium cursor-pointer">Bot Mode</label>
           </div>
           {state.multiplayerMode ? (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="default" className="text-xs animate-pulse">
+              <Users className="h-3 w-3 mr-1" />
               Multiplayer Active
             </Badge>
           ) : (
@@ -198,8 +207,20 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
       
       <div className="flex justify-between items-center text-sm pt-2">
         <div className="flex items-center gap-1">
-          <span className="flex h-3 w-3 rounded-full bg-green-500"></span>
-          <span>{state.playerSymbols[state.currentPlayer]}'s turn</span>
+          <span className={`flex h-3 w-3 rounded-full ${
+            state.isMyTurn && state.multiplayerMode 
+              ? 'bg-green-500 animate-pulse' 
+              : state.currentPlayer === 'X' 
+                ? 'bg-blue-500' 
+                : 'bg-amber-500'
+          }`}></span>
+          <span>
+            {state.multiplayerMode
+              ? state.isMyTurn 
+                ? "Your turn" 
+                : "Opponent's turn"
+              : `${state.playerSymbols[state.currentPlayer]}'s turn`}
+          </span>
         </div>
         <div className="text-muted-foreground">
           {state.gameStatus === 'playing' && (

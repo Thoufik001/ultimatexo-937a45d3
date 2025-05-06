@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff } from 'lucide-react';
+import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff, MessageCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useGame } from '@/context/GameContext';
 import multiplayerService from '@/services/MultiplayerService';
 import { toast } from 'sonner';
+import { Badge } from "@/components/ui/badge";
 
 const MultiplayerButton: React.FC = () => {
   const { state, updateSettings } = useGame();
@@ -23,27 +24,55 @@ const MultiplayerButton: React.FC = () => {
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
   const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'direct'>('disconnected');
+  
+  // Auto-select text when focused
+  const handleCodeFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
 
   // Automatically connect to multiplayer service when component mounts
-  React.useEffect(() => {
+  useEffect(() => {
     const checkConnection = async () => {
+      if (state.multiplayerMode) return; // Don't check if already in multiplayer mode
+      
       setConnectionStatus('connecting');
       try {
         await multiplayerService.connect();
         setConnectionStatus('connected');
       } catch (error) {
-        setConnectionStatus('disconnected');
+        setConnectionStatus('direct');
       }
     };
     
     checkConnection();
     
-    // Recheck connection every minute
-    const intervalId = setInterval(checkConnection, 60000);
+    // No need for interval as we'll now use a more reactive approach
+  }, [state.multiplayerMode]);
+  
+  // Create a more reliable connection checking mechanism
+  useEffect(() => {
+    const handleOnline = () => {
+      if (connectionStatus !== 'connected' && !state.multiplayerMode) {
+        setConnectionStatus('connecting');
+        multiplayerService.connect()
+          .then(() => setConnectionStatus('connected'))
+          .catch(() => setConnectionStatus('direct'));
+      }
+    };
     
-    return () => clearInterval(intervalId);
-  }, []);
+    const handleOffline = () => {
+      setConnectionStatus('disconnected');
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [connectionStatus, state.multiplayerMode]);
 
   const handleMultiplayerClick = () => {
     if (state.multiplayerMode) {
@@ -67,19 +96,14 @@ const MultiplayerButton: React.FC = () => {
     }
     
     setIsConnecting(true);
-    setConnectionStatus('connecting');
     
     try {
-      // Ensure connection before creating game
-      await multiplayerService.connect();
-      setConnectionStatus('connected');
-      
       updateSettings({
         ...state,
         playerName,
         multiplayerMode: true,
         turnTimeLimit: state.turnTimeLimit,
-        timerEnabled: state.timerEnabled,
+        timerEnabled: true, // Enable timer for multiplayer
         playerSymbols: state.playerSymbols,
         botMode: false,
         difficulty: state.difficulty
@@ -90,8 +114,7 @@ const MultiplayerButton: React.FC = () => {
       setShowDialog(false);
       toast.success("Creating new multiplayer game...");
     } catch (error) {
-      setConnectionStatus('disconnected');
-      toast.error("Connection error. Using local multiplayer mode instead.");
+      toast.error("There was an error creating the game");
     } finally {
       setIsConnecting(false);
     }
@@ -109,19 +132,14 @@ const MultiplayerButton: React.FC = () => {
     }
     
     setIsConnecting(true);
-    setConnectionStatus('connecting');
     
     try {
-      // Ensure connection before joining game
-      await multiplayerService.connect();
-      setConnectionStatus('connected');
-      
       updateSettings({
         ...state,
         playerName,
         multiplayerMode: true,
         turnTimeLimit: state.turnTimeLimit,
-        timerEnabled: state.timerEnabled,
+        timerEnabled: true, // Enable timer for multiplayer
         playerSymbols: state.playerSymbols,
         botMode: false,
         difficulty: state.difficulty
@@ -132,8 +150,7 @@ const MultiplayerButton: React.FC = () => {
       setShowDialog(false);
       toast.success("Joining game...");
     } catch (error) {
-      setConnectionStatus('disconnected');
-      toast.error("Connection error. Using local multiplayer mode instead.");
+      toast.error("There was an error joining the game");
     } finally {
       setIsConnecting(false);
     }
@@ -141,7 +158,7 @@ const MultiplayerButton: React.FC = () => {
   
   // Function to retry connection
   const handleRetryConnection = async () => {
-    toast.info("Reconnecting to multiplayer server...");
+    toast.info("Connecting to multiplayer...");
     setConnectionStatus('connecting');
     
     try {
@@ -149,8 +166,8 @@ const MultiplayerButton: React.FC = () => {
       setConnectionStatus('connected');
       toast.success("Connection established!");
     } catch (error) {
-      setConnectionStatus('disconnected');
-      toast.error("Connection failed. Please try again later.");
+      setConnectionStatus('direct');
+      toast.info("Using direct connection mode");
     }
   };
   
@@ -172,6 +189,38 @@ const MultiplayerButton: React.FC = () => {
       }
     }
   };
+  
+  // Get appropriate connection status icon and text
+  const getConnectionInfo = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return { 
+          icon: <Wifi className="h-4 w-4 text-green-500" />,
+          text: "Connected to multiplayer server",
+          color: "bg-green-500"
+        };
+      case 'connecting':
+        return { 
+          icon: <RefreshCcw className="h-4 w-4 animate-spin text-amber-500" />,
+          text: "Connecting to server...",
+          color: "bg-amber-500"
+        };
+      case 'direct':
+        return { 
+          icon: <MessageCircle className="h-4 w-4 text-blue-500" />,
+          text: "Using direct connection mode",
+          color: "bg-blue-500"
+        };
+      default:
+        return { 
+          icon: <WifiOff className="h-4 w-4 text-red-500" />,
+          text: "Not connected",
+          color: "bg-red-500"
+        };
+    }
+  };
+  
+  const connectionInfo = getConnectionInfo();
 
   return (
     <>
@@ -179,13 +228,12 @@ const MultiplayerButton: React.FC = () => {
         className="w-full glass-card group" 
         variant="outline" 
         onClick={handleMultiplayerClick}
+        disabled={isConnecting}
       >
         <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
         <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Online Multiplayer'}</span>
-        {!state.multiplayerMode && connectionStatus !== 'disconnected' && (
-          <span className={`ml-auto rounded-full w-2 h-2 ${
-            connectionStatus === 'connected' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'
-          }`}></span>
+        {!state.multiplayerMode && (
+          <span className={`ml-auto rounded-full w-2 h-2 ${connectionInfo.color} animate-pulse`}></span>
         )}
       </Button>
       
@@ -206,16 +254,31 @@ const MultiplayerButton: React.FC = () => {
               variant="secondary"
               onClick={handleRetryConnection}
             >
-              {connectionStatus === 'connecting' ? (
-                <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-              ) : connectionStatus === 'connected' ? (
-                <Wifi className="mr-2 h-4 w-4" />
-              ) : (
-                <WifiOff className="mr-2 h-4 w-4" />
-              )}
-              {connectionStatus === 'connecting' ? 'Connecting...' : 'Reconnect'}
+              {connectionInfo.icon}
+              <span className="ml-2">Reconnect</span>
             </Button>
           )}
+        </div>
+      )}
+      
+      {state.multiplayerMode && state.gameCode && (
+        <div className="mt-2 p-2 border rounded-md bg-muted/20">
+          <div className="flex justify-between items-center">
+            <div className="text-sm font-mono">
+              Game Code: <Badge variant="outline">{state.gameCode}</Badge>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 px-2"
+              onClick={() => {
+                navigator.clipboard.writeText(state.gameCode);
+                toast.success("Game code copied!");
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       )}
       
@@ -250,6 +313,7 @@ const MultiplayerButton: React.FC = () => {
                   onChange={(e) => setGameCode(e.target.value.toUpperCase())}
                   className="font-mono uppercase"
                   maxLength={6}
+                  onFocus={handleCodeFocus}
                 />
               </div>
             )}
@@ -280,7 +344,7 @@ const MultiplayerButton: React.FC = () => {
                     className="flex-1"
                     disabled={isConnecting}
                   >
-                    {isConnecting ? 'Connecting...' : 'Create New Game'}
+                    {isConnecting ? 'Creating...' : 'Create New Game'}
                   </Button>
                   <Button 
                     variant="outline" 
@@ -295,22 +359,10 @@ const MultiplayerButton: React.FC = () => {
             </div>
             
             <div className="text-center text-sm text-muted-foreground">
-              {connectionStatus === 'connected' ? (
-                <div className="flex items-center justify-center gap-2">
-                  <Wifi className="h-4 w-4 text-green-500" />
-                  <span>Connected to game server</span>
-                </div>
-              ) : connectionStatus === 'connecting' ? (
-                <div className="flex items-center justify-center gap-2">
-                  <RefreshCcw className="h-4 w-4 animate-spin text-amber-500" />
-                  <span>Connecting to server...</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <WifiOff className="h-4 w-4 text-red-500" />
-                  <span>Not connected (will use local mode)</span>
-                </div>
-              )}
+              <div className="flex items-center justify-center gap-2">
+                {connectionInfo.icon}
+                <span>{connectionInfo.text}</span>
+              </div>
             </div>
           </div>
         </DialogContent>

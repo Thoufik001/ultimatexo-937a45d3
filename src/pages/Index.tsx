@@ -11,7 +11,7 @@ import Confetti from '@/components/Confetti';
 import { useGame } from '@/context/GameContext';
 import MultiplayerButton from '@/components/MultiplayerButton';
 import { Button } from '@/components/ui/button';
-import { Copy, Link, Users } from 'lucide-react';
+import { Copy, Link, Users, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -54,6 +54,9 @@ const Game: React.FC = () => {
   
   // Show confirmation before restarting
   const handleRestartRequested = () => {
+    if (state.multiplayerMode && state.opponentName) {
+      toast.info("Warning: Restarting will affect both players");
+    }
     setShowRestartDialog(true);
   };
   
@@ -62,6 +65,18 @@ const Game: React.FC = () => {
       navigator.clipboard.writeText(state.gameCode);
       toast.success("Game code copied to clipboard!");
     }
+  };
+
+  // Get connection type badge
+  const getConnectionBadge = () => {
+    if (!state.multiplayerMode) return null;
+    
+    return (
+      <div className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary flex items-center gap-1">
+        <MessageCircle className="h-3 w-3" />
+        <span>Direct Connection</span>
+      </div>
+    );
   };
   
   return (
@@ -93,7 +108,7 @@ const Game: React.FC = () => {
                   </div>
                   
                   <div className="space-y-3">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Game Code:</span>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-medium">{state.gameCode}</span>
@@ -127,6 +142,10 @@ const Game: React.FC = () => {
                       <span className="font-medium">
                         {state.isHost ? state.playerSymbols.X : state.playerSymbols.O}
                       </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Connection:</span>
+                      {getConnectionBadge()}
                     </div>
                   </div>
                   
@@ -205,7 +224,9 @@ const Game: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Restart Game?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will reset the current game. All progress will be lost. Are you sure?
+              This will reset the current game. All progress will be lost. 
+              {state.multiplayerMode && " This will affect both players."}
+              Are you sure?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -227,7 +248,7 @@ const Index: React.FC = () => {
         <div className="min-h-screen flex flex-col p-4 bg-background">
           <header className="text-center my-6">
             <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">Ultimate XO</h1>
-            <p className="text-muted-foreground font-inter">Classic Tic-Tac-Toe with a strategic twist</p>
+            <p className="text-muted-foreground font-inter">Challenge friends in real-time multiplayer</p>
           </header>
           
           <main className="flex-grow">
@@ -237,7 +258,7 @@ const Index: React.FC = () => {
           <WelcomeModal open={showWelcome} onClose={() => setShowWelcome(false)} />
           
           <footer className="text-center py-4 mt-8 text-sm text-muted-foreground font-inter">
-            <p>© 2025 Ultimate XO - A strategic board game</p>
+            <p>© 2025 Ultimate XO - A real-time multiplayer strategy game</p>
           </footer>
         </div>
       </GameProvider>
