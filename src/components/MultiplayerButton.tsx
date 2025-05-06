@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff } from 'lucide-react';
 import {
@@ -50,6 +50,13 @@ const MultiplayerButton: React.FC = () => {
       toast.info("You're already in multiplayer mode");
       return;
     }
+    
+    // Check if we're already in a game
+    if (state.gameStatus === 'playing') {
+      toast.info("Finish or restart your current game before starting multiplayer");
+      return;
+    }
+    
     setShowDialog(true);
   };
 
@@ -81,6 +88,7 @@ const MultiplayerButton: React.FC = () => {
       localStorage.setItem('playerName', playerName);
       multiplayerService.createGame(playerName);
       setShowDialog(false);
+      toast.success("Creating new multiplayer game...");
     } catch (error) {
       setConnectionStatus('disconnected');
       toast.error("Connection error. Using local multiplayer mode instead.");
@@ -122,6 +130,7 @@ const MultiplayerButton: React.FC = () => {
       localStorage.setItem('playerName', playerName);
       multiplayerService.joinGame(gameCode.toUpperCase().trim(), playerName);
       setShowDialog(false);
+      toast.success("Joining game...");
     } catch (error) {
       setConnectionStatus('disconnected');
       toast.error("Connection error. Using local multiplayer mode instead.");

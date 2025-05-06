@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
@@ -31,7 +30,8 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     resumeGame, 
     toggleSound,
     toggleBotMode,
-    updateSettings
+    updateSettings,
+    restartGame
   } = useGame();
   
   const handleStart = () => {
@@ -44,9 +44,11 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     }
   };
   
-  // Always use the passed onRestart prop to ensure proper state reset
+  // Make sure we use restartGame from context to properly reset everything
   const handleRestart = () => {
+    restartGame();
     onRestart();
+    toast.success("Game restarted!");
   };
   
   const toggleBot = () => {

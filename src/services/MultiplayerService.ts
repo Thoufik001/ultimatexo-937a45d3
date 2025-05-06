@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 // Types for our multiplayer events
@@ -30,9 +31,9 @@ class MultiplayerService {
   // Using multiple reliable WebSocket servers with proper HTTPS setup
   private serverUrls = [
     "wss://ttt-multiplayer.glitch.me",
-    "wss://multiplayer-game-service.onrender.com",
     "wss://multiplayer-games-server.glitch.me",
-    "wss://ultimate-ttt-server.herokuapp.com"
+    "wss://ultimate-ttt-server.herokuapp.com",
+    "wss://tic-tac-toe-ws.glitch.me"
   ];
   private currentServerIndex = 0;
   
