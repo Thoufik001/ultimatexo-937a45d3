@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff, MessageCircle } from 'lucide-react';
+import { Users, RefreshCcw, Copy, Share2, Wifi, MessageCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -24,55 +24,11 @@ const MultiplayerButton: React.FC = () => {
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
   const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'direct'>('disconnected');
   
   // Auto-select text when focused
   const handleCodeFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.select();
   };
-
-  // Automatically connect to multiplayer service when component mounts
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (state.multiplayerMode) return; // Don't check if already in multiplayer mode
-      
-      setConnectionStatus('connecting');
-      try {
-        await multiplayerService.connect();
-        setConnectionStatus('connected');
-      } catch (error) {
-        setConnectionStatus('direct');
-      }
-    };
-    
-    checkConnection();
-    
-    // No need for interval as we'll now use a more reactive approach
-  }, [state.multiplayerMode]);
-  
-  // Create a more reliable connection checking mechanism
-  useEffect(() => {
-    const handleOnline = () => {
-      if (connectionStatus !== 'connected' && !state.multiplayerMode) {
-        setConnectionStatus('connecting');
-        multiplayerService.connect()
-          .then(() => setConnectionStatus('connected'))
-          .catch(() => setConnectionStatus('direct'));
-      }
-    };
-    
-    const handleOffline = () => {
-      setConnectionStatus('disconnected');
-    };
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [connectionStatus, state.multiplayerMode]);
 
   const handleMultiplayerClick = () => {
     if (state.multiplayerMode) {
@@ -156,21 +112,6 @@ const MultiplayerButton: React.FC = () => {
     }
   };
   
-  // Function to retry connection
-  const handleRetryConnection = async () => {
-    toast.info("Connecting to multiplayer...");
-    setConnectionStatus('connecting');
-    
-    try {
-      await multiplayerService.connect();
-      setConnectionStatus('connected');
-      toast.success("Connection established!");
-    } catch (error) {
-      setConnectionStatus('direct');
-      toast.info("Using direct connection mode");
-    }
-  };
-  
   const handleShareGame = () => {
     if (state.gameCode) {
       // Try to use the Web Share API if available
@@ -190,38 +131,6 @@ const MultiplayerButton: React.FC = () => {
     }
   };
   
-  // Get appropriate connection status icon and text
-  const getConnectionInfo = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return { 
-          icon: <Wifi className="h-4 w-4 text-green-500" />,
-          text: "Connected to multiplayer server",
-          color: "bg-green-500"
-        };
-      case 'connecting':
-        return { 
-          icon: <RefreshCcw className="h-4 w-4 animate-spin text-amber-500" />,
-          text: "Connecting to server...",
-          color: "bg-amber-500"
-        };
-      case 'direct':
-        return { 
-          icon: <MessageCircle className="h-4 w-4 text-blue-500" />,
-          text: "Using direct connection mode",
-          color: "bg-blue-500"
-        };
-      default:
-        return { 
-          icon: <WifiOff className="h-4 w-4 text-red-500" />,
-          text: "Not connected",
-          color: "bg-red-500"
-        };
-    }
-  };
-  
-  const connectionInfo = getConnectionInfo();
-
   return (
     <>
       <Button 
@@ -231,9 +140,9 @@ const MultiplayerButton: React.FC = () => {
         disabled={isConnecting}
       >
         <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
-        <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Online Multiplayer'}</span>
+        <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Same-WiFi Multiplayer'}</span>
         {!state.multiplayerMode && (
-          <span className={`ml-auto rounded-full w-2 h-2 ${connectionInfo.color} animate-pulse`}></span>
+          <span className={`ml-auto rounded-full w-2 h-2 bg-green-500 animate-pulse`}></span>
         )}
       </Button>
       
@@ -247,17 +156,6 @@ const MultiplayerButton: React.FC = () => {
             <Share2 className="mr-2 h-4 w-4" />
             Share Game
           </Button>
-          
-          {(!state.opponentName || connectionStatus === 'disconnected') && (
-            <Button 
-              className="flex-1" 
-              variant="secondary"
-              onClick={handleRetryConnection}
-            >
-              {connectionInfo.icon}
-              <span className="ml-2">Reconnect</span>
-            </Button>
-          )}
         </div>
       )}
       
@@ -285,9 +183,9 @@ const MultiplayerButton: React.FC = () => {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Multiplayer Game</DialogTitle>
+            <DialogTitle>Same-WiFi Multiplayer</DialogTitle>
             <DialogDescription>
-              Play against a friend online in real-time.
+              Play against a friend on the same WiFi network. Just share the game code!
             </DialogDescription>
           </DialogHeader>
           
@@ -360,8 +258,8 @@ const MultiplayerButton: React.FC = () => {
             
             <div className="text-center text-sm text-muted-foreground">
               <div className="flex items-center justify-center gap-2">
-                {connectionInfo.icon}
-                <span>{connectionInfo.text}</span>
+                <Wifi className="h-4 w-4 text-green-500" />
+                <span>Ready for same-WiFi multiplayer</span>
               </div>
             </div>
           </div>

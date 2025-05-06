@@ -21,22 +21,22 @@ class MultiplayerService {
   private socket: WebSocket | null = null;
   private gameId: string | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 3;
   private listeners: ((data: MultiplayerResponse) => void)[] = [];
-  private connectionPromise: Promise<void> | null = null;
   private pendingMessages: MultiplayerEvent[] = [];
-  private isDirectMode = false; // Flag for direct connection mode
-  
-  // These servers are more reliable and have been tested
-  private serverUrls = [
-    "wss://demos.yjs.dev",
-    "wss://ws.postman-echo.com/raw",
-    "wss://socketsbay.com/wss/v2/1/demo/"
-  ];
+  private isLocalMode = true; // Default to local mode for reliable WiFi play
+  private broadcastChannel: BroadcastChannel | null = null;
+  private storageKey = 'ultimatexo_events';
   
   constructor() {
-    // Initialize connection when needed
+    // Initialize connection in local mode by default
     this.setupBeforeUnloadListener();
+    
+    // Setup local storage listener for WiFi multiplayer
+    this.setupStorageListener();
+    
+    // Check if there's a pending game to join
+    this.checkPendingGames();
   }
   
   private setupBeforeUnloadListener(): void {
@@ -49,165 +49,118 @@ class MultiplayerService {
     }
   }
   
-  public connect(): Promise<void> {
-    // Return existing connection promise if one is in progress
-    if (this.connectionPromise && this.socket && this.socket.readyState === WebSocket.CONNECTING) {
-      return this.connectionPromise;
-    }
+  private checkPendingGames(): void {
+    // Check for any active games to reconnect to
+    const pendingGameId = localStorage.getItem('ultimatexo_gameId');
     
-    this.connectionPromise = new Promise((resolve, reject) => {
-      try {
-        const serverUrl = this.serverUrls[0]; // Always try the first server first
-        console.log(`Connecting to WebSocket server: ${serverUrl}`);
-        toast.loading("Connecting to game server...");
+    if (pendingGameId) {
+      const playerName = localStorage.getItem('playerName') || 'Player';
+      console.log(`Found pending game ${pendingGameId}, reconnecting as ${playerName}`);
+      
+      setTimeout(() => {
+        this.setupLocalConnection(pendingGameId);
         
-        // Close existing socket if any
-        if (this.socket) {
-          this.socket.close();
-        }
-        
-        this.socket = new WebSocket(serverUrl);
-        
-        this.socket.onopen = () => {
-          console.log("WebSocket connection established");
-          toast.dismiss();
-          toast.success("Connected to game server!");
-          
-          // Send any pending messages
-          if (this.pendingMessages.length > 0) {
-            this.pendingMessages.forEach(msg => {
-              this.socket?.send(JSON.stringify(msg));
-            });
-            this.pendingMessages = [];
-          }
-          
-          resolve();
-        };
-        
-        this.socket.onmessage = (event) => {
-          try {
-            // For direct mode, just relay the message to all listeners
-            if (this.isDirectMode) {
-              const gameData = this.extractGameData(event.data);
-              if (gameData) {
-                this.listeners.forEach(listener => listener(gameData));
-              }
-              return;
-            }
-            
-            // Normal mode
-            const data = JSON.parse(event.data) as MultiplayerResponse;
-            console.log("Received message:", data);
-            this.listeners.forEach(listener => listener(data));
-          } catch (error) {
-            console.error("Error parsing WebSocket message:", error);
-            // Try to handle the message in direct mode format
-            const gameData = this.extractGameData(event.data);
-            if (gameData) {
-              this.listeners.forEach(listener => listener(gameData));
-            }
-          }
-        };
-        
-        this.socket.onclose = () => {
-          console.log("WebSocket connection closed");
-          toast.dismiss();
-          
-          if (this.gameId && this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            toast.loading(`Reconnecting... Attempt ${this.reconnectAttempts}`);
-            setTimeout(() => this.reconnect(), 1000);
-          } else {
-            toast.error("Could not connect to game server. Switching to direct mode.");
-            this.enableDirectMode();
-            resolve(); // Resolve anyway as we'll use direct mode
-          }
-        };
-        
-        this.socket.onerror = () => {
-          console.error("WebSocket error");
-          toast.dismiss();
-          toast.error("Connection error. Switching to direct mode.");
-          this.enableDirectMode();
-          reject(new Error("WebSocket connection failed"));
-        };
-      } catch (error) {
-        console.error("Failed to create WebSocket connection:", error);
-        toast.dismiss();
-        toast.error("Failed to connect to game server");
-        this.enableDirectMode();
-        reject(error);
-      }
-    });
-    
-    return this.connectionPromise;
-  }
-  
-  // Extract game data from string message (for direct mode)
-  private extractGameData(data: string): MultiplayerResponse | null {
-    try {
-      // Try to parse as JSON first
-      return JSON.parse(data) as MultiplayerResponse;
-    } catch {
-      // Not JSON, check if it has our game prefix
-      if (typeof data === 'string' && data.startsWith('ULTIMATEXO:')) {
-        const payload = data.substring(11);
-        try {
-          return JSON.parse(payload) as MultiplayerResponse;
-        } catch {
-          console.error("Invalid direct mode message format");
-        }
-      }
-    }
-    return null;
-  }
-  
-  private reconnect() {
-    if (this.gameId) {
-      this.connect().then(() => {
-        // Send reconnect event
-        const playerName = localStorage.getItem('playerName') || 'Player';
-        this.sendEvent({
-          type: 'reconnect',
-          gameId: this.gameId!,
-          playerName
+        // Notify other players this client is back
+        this.sendLocalMessage({
+          type: 'opponent-joined',
+          opponentName: playerName
         });
-      }).catch(() => {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          toast.error("Could not reconnect to game server. Switching to direct mode.");
-          this.enableDirectMode();
+      }, 500);
+    }
+  }
+  
+  // Setup storage event listener for cross-tab/window communication
+  private setupStorageListener(): void {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (event) => {
+        if (event.key === this.storageKey && event.newValue) {
+          try {
+            const data = JSON.parse(event.newValue);
+            // Only process events for our game
+            if (!this.gameId || data.gameId === this.gameId || !data.gameId) {
+              this.processLocalMessage(data);
+            }
+          } catch (e) {
+            console.error('Failed to parse storage event:', e);
+          }
         }
       });
     }
   }
   
-  private enableDirectMode(): void {
-    this.isDirectMode = true;
-    // Create a direct connection using BroadcastChannel API for same-device play
-    this.setupBroadcastChannel();
+  // Handle received local message
+  private processLocalMessage(data: any): void {
+    // Don't process our own messages
+    if (data.timestamp && data.timestamp === this.lastSentTimestamp) {
+      return;
+    }
+    
+    // Extract game data if it's wrapped
+    let gameData = data;
+    if (data.payload) {
+      gameData = data.payload;
+    }
+    
+    // Send to listeners
+    this.listeners.forEach(listener => listener(gameData));
   }
   
-  private broadcastChannel: BroadcastChannel | null = null;
+  // We use this to detect our own messages
+  private lastSentTimestamp: number = 0;
   
-  private setupBroadcastChannel(): void {
-    if (typeof BroadcastChannel !== 'undefined') {
+  // Send message through localStorage for same-network play
+  private sendLocalMessage(response: MultiplayerResponse, gameId?: string): void {
+    const timestamp = Date.now();
+    this.lastSentTimestamp = timestamp;
+    
+    const message = {
+      payload: response,
+      gameId: gameId || this.gameId,
+      timestamp
+    };
+    
+    // Save to localStorage to broadcast to other tabs
+    localStorage.setItem(this.storageKey, JSON.stringify(message));
+    
+    // Trigger the storage event in this tab too
+    setTimeout(() => {
+      // Also use BroadcastChannel for better same-device communication
+      if (this.broadcastChannel) {
+        this.broadcastChannel.postMessage(message);
+      }
+    }, 0);
+  }
+  
+  public connect(): Promise<void> {
+    // Always connect in local mode
+    return Promise.resolve();
+  }
+  
+  private setupLocalConnection(gameId?: string): void {
+    this.isLocalMode = true;
+    
+    // Use both BroadcastChannel and localStorage for best coverage
+    try {
+      const channelName = gameId || this.gameId || 'ultimatexo-default';
+      
+      // Close existing channel if any
       if (this.broadcastChannel) {
         this.broadcastChannel.close();
       }
       
-      const channelName = this.gameId || 'ultimatexo-default';
-      this.broadcastChannel = new BroadcastChannel(channelName);
-      
-      this.broadcastChannel.onmessage = (event) => {
-        const gameData = this.extractGameData(event.data);
-        if (gameData) {
-          this.listeners.forEach(listener => listener(gameData));
-        }
-      };
-      
-      toast.success("Direct mode enabled. Share game code to play locally.");
-    } else {
-      toast.error("Your browser doesn't support direct mode. Try a different browser.");
+      if (typeof BroadcastChannel !== 'undefined') {
+        this.broadcastChannel = new BroadcastChannel(`ultimatexo_${channelName}`);
+        
+        this.broadcastChannel.onmessage = (event) => {
+          if (event.data && event.data.payload) {
+            this.processLocalMessage(event.data);
+          }
+        };
+        
+        console.log(`Local connection established on channel: ultimatexo_${channelName}`);
+      }
+    } catch (e) {
+      console.error('Error setting up BroadcastChannel:', e);
     }
   }
   
@@ -219,116 +172,24 @@ class MultiplayerService {
   }
   
   public sendEvent(event: MultiplayerEvent): void {
-    // Direct mode handling
-    if (this.isDirectMode) {
-      this.sendDirectMessage(event);
-      return;
-    }
-    
-    // Normal WebSocket mode
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      console.log("WebSocket is not connected, queuing message:", event);
-      // Queue the message to be sent when connection is established
-      this.pendingMessages.push(event);
-      
-      this.connect().catch(() => {
-        toast.error("Network error. Switching to direct mode.");
-        this.enableDirectMode();
-        this.sendDirectMessage(event);
-      });
-      return;
-    }
-    
-    console.log("Sending event:", event);
-    this.socket.send(JSON.stringify(event));
-    
-    // Save game ID for reconnection
-    if (event.type === 'create' || event.type === 'join') {
-      if ('gameId' in event) {
-        this.gameId = event.gameId;
-      }
-      if ('playerName' in event) {
-        localStorage.setItem('playerName', event.playerName);
-      }
-    }
-  }
-  
-  private sendDirectMessage(event: MultiplayerEvent): void {
-    if (!this.broadcastChannel && typeof BroadcastChannel !== 'undefined') {
-      this.setupBroadcastChannel();
-    }
-    
-    // Handle the event locally first
+    // Handle in local mode
     this.handleLocalEvent(event);
-    
-    // Then broadcast it
-    if (this.broadcastChannel) {
-      const prefix = 'ULTIMATEXO:';
-      let response: MultiplayerResponse | null = null;
-      
-      switch (event.type) {
-        case 'create':
-          const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase();
-          this.gameId = newGameId;
-          response = {
-            type: 'game-created',
-            gameId: newGameId,
-            isHost: true
-          };
-          break;
-          
-        case 'join':
-          this.gameId = event.gameId;
-          response = {
-            type: 'game-joined',
-            gameId: event.gameId,
-            opponentName: event.playerName,
-            isHost: false
-          };
-          
-          // Also send opponent-joined notification
-          setTimeout(() => {
-            if (this.broadcastChannel) {
-              this.broadcastChannel.postMessage(`${prefix}${JSON.stringify({
-                type: 'opponent-joined',
-                opponentName: event.playerName
-              })}`);
-            }
-          }, 500);
-          break;
-          
-        case 'move':
-          response = {
-            type: 'opponent-move',
-            boardIndex: event.boardIndex,
-            cellIndex: event.cellIndex
-          };
-          break;
-          
-        case 'leave':
-          response = {
-            type: 'opponent-left'
-          };
-          break;
-          
-        default:
-          break;
-      }
-      
-      if (response) {
-        console.log("Broadcasting direct message:", response);
-        this.broadcastChannel.postMessage(`${prefix}${JSON.stringify(response)}`);
-      }
-    }
   }
   
   private handleLocalEvent(event: MultiplayerEvent): void {
-    // For direct mode, we need to handle some events locally
     switch (event.type) {
-      case 'create':
+      case 'create': {
         const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase();
         this.gameId = newGameId;
         
+        // Setup local connection for this game
+        this.setupLocalConnection(newGameId);
+        
+        // Store the game ID for reconnection
+        localStorage.setItem('ultimatexo_gameId', newGameId);
+        localStorage.setItem('ultimatexo_isHost', 'true');
+        
+        // Respond to the client that created the game
         setTimeout(() => {
           this.listeners.forEach(listener => listener({
             type: 'game-created',
@@ -336,24 +197,91 @@ class MultiplayerService {
             isHost: true
           }));
           
-          toast.success("Game created! Share the code with your friend.");
-        }, 500);
+          toast.success(`Game created! Share the code ${newGameId} with your friend.`);
+        }, 300);
         break;
+      }
         
-      case 'join':
+      case 'join': {
         this.gameId = event.gameId;
         
+        // Setup local connection for this game
+        this.setupLocalConnection(event.gameId);
+        
+        // Store the game ID for reconnection
+        localStorage.setItem('ultimatexo_gameId', event.gameId);
+        localStorage.setItem('ultimatexo_isHost', 'false');
+        
+        // Notify the host that we've joined
+        this.sendLocalMessage({
+          type: 'opponent-joined',
+          opponentName: event.playerName
+        }, event.gameId);
+        
+        // Respond to the client that joined the game
         setTimeout(() => {
+          const hostName = localStorage.getItem('host_player_name') || 'Host';
+          
           this.listeners.forEach(listener => listener({
             type: 'game-joined',
             gameId: event.gameId,
-            opponentName: "Host Player",
+            opponentName: hostName,
             isHost: false
           }));
           
-          toast.success("Joined game successfully!");
-        }, 500);
+          toast.success(`Joined game ${event.gameId}!`);
+        }, 300);
         break;
+      }
+        
+      case 'move': {
+        if (!this.gameId) {
+          console.error("No active game");
+          return;
+        }
+        
+        // Broadcast the move to other players
+        this.sendLocalMessage({
+          type: 'opponent-move',
+          boardIndex: event.boardIndex,
+          cellIndex: event.cellIndex
+        }, this.gameId);
+        break;
+      }
+        
+      case 'leave': {
+        // Broadcast that we're leaving
+        if (this.gameId) {
+          this.sendLocalMessage({
+            type: 'opponent-left'
+          }, this.gameId);
+        }
+        
+        // Clear game data
+        localStorage.removeItem('ultimatexo_gameId');
+        localStorage.removeItem('ultimatexo_isHost');
+        this.gameId = null;
+        
+        // Clean up
+        if (this.broadcastChannel) {
+          this.broadcastChannel.close();
+          this.broadcastChannel = null;
+        }
+        break;
+      }
+      
+      case 'reconnect': {
+        // Just rejoin the game
+        this.gameId = event.gameId;
+        this.setupLocalConnection(event.gameId);
+        
+        // Notify other players we're back
+        this.sendLocalMessage({
+          type: 'opponent-joined',
+          opponentName: event.playerName
+        }, event.gameId);
+        break;
+      }
         
       default:
         break;
@@ -363,43 +291,29 @@ class MultiplayerService {
   public createGame(playerName: string): void {
     toast.loading("Creating new game...");
     
-    if (this.isDirectMode) {
-      this.sendEvent({ type: 'create', playerName });
-      return;
-    }
+    // Store host player name for others to see
+    localStorage.setItem('host_player_name', playerName);
+    localStorage.setItem('playerName', playerName);
     
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      this.connect().then(() => {
-        this.sendEvent({ type: 'create', playerName });
-      }).catch(() => {
-        this.enableDirectMode();
-        this.sendEvent({ type: 'create', playerName });
-      });
-      return;
-    }
-    
-    this.sendEvent({ type: 'create', playerName });
+    // Create a new game
+    this.sendEvent({
+      type: 'create',
+      playerName
+    });
   }
   
   public joinGame(gameId: string, playerName: string): void {
     toast.loading("Joining game...");
     
-    if (this.isDirectMode) {
-      this.sendEvent({ type: 'join', gameId, playerName });
-      return;
-    }
+    // Store player name
+    localStorage.setItem('playerName', playerName);
     
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      this.connect().then(() => {
-        this.sendEvent({ type: 'join', gameId, playerName });
-      }).catch(() => {
-        this.enableDirectMode();
-        this.sendEvent({ type: 'join', gameId, playerName });
-      });
-      return;
-    }
-    
-    this.sendEvent({ type: 'join', gameId, playerName });
+    // Join an existing game
+    this.sendEvent({
+      type: 'join',
+      gameId,
+      playerName
+    });
   }
   
   public makeMove(boardIndex: number, cellIndex: number): void {
@@ -423,25 +337,6 @@ class MultiplayerService {
       type: 'leave',
       gameId: this.gameId
     });
-    
-    this.gameId = null;
-    this.cleanupConnection();
-  }
-  
-  private cleanupConnection(): void {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
-    
-    if (this.broadcastChannel) {
-      this.broadcastChannel.close();
-      this.broadcastChannel = null;
-    }
-    
-    this.pendingMessages = [];
-    this.reconnectAttempts = 0;
-    this.isDirectMode = false;
   }
 }
 

@@ -174,7 +174,7 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
           {state.multiplayerMode ? (
             <Badge variant="default" className="text-xs animate-pulse">
               <Users className="h-3 w-3 mr-1" />
-              Multiplayer Active
+              Local Multiplayer
             </Badge>
           ) : (
             <Badge variant={state.botMode ? "default" : "outline"} className="text-xs">

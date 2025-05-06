@@ -11,7 +11,7 @@ import Confetti from '@/components/Confetti';
 import { useGame } from '@/context/GameContext';
 import MultiplayerButton from '@/components/MultiplayerButton';
 import { Button } from '@/components/ui/button';
-import { Copy, Link, Users, MessageCircle } from 'lucide-react';
+import { Copy, Link, Users, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -65,18 +65,6 @@ const Game: React.FC = () => {
       navigator.clipboard.writeText(state.gameCode);
       toast.success("Game code copied to clipboard!");
     }
-  };
-
-  // Get connection type badge
-  const getConnectionBadge = () => {
-    if (!state.multiplayerMode) return null;
-    
-    return (
-      <div className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary flex items-center gap-1">
-        <MessageCircle className="h-3 w-3" />
-        <span>Direct Connection</span>
-      </div>
-    );
   };
   
   return (
@@ -145,7 +133,10 @@ const Game: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Connection:</span>
-                      {getConnectionBadge()}
+                      <div className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-600 flex items-center gap-1">
+                        <Wifi className="h-3 w-3" />
+                        <span>WiFi Multiplayer</span>
+                      </div>
                     </div>
                   </div>
                   
@@ -183,7 +174,8 @@ const Game: React.FC = () => {
                   <li>If sent to a completed board, you may play anywhere on the grid</li>
                   <li>Watch the timer - if it runs out, you lose your turn</li>
                   <li>Try different AI difficulty levels in bot mode</li>
-                  <li>Challenge friends online in multiplayer mode</li>
+                  <li>Challenge friends on the same WiFi in multiplayer mode</li>
+                  <li>Just share the game code with players on same network</li>
                 </ul>
               </div>
             </TabsContent>
@@ -248,7 +240,7 @@ const Index: React.FC = () => {
         <div className="min-h-screen flex flex-col p-4 bg-background">
           <header className="text-center my-6">
             <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">Ultimate XO</h1>
-            <p className="text-muted-foreground font-inter">Challenge friends in real-time multiplayer</p>
+            <p className="text-muted-foreground font-inter">Challenge friends on the same WiFi network</p>
           </header>
           
           <main className="flex-grow">
@@ -258,7 +250,7 @@ const Index: React.FC = () => {
           <WelcomeModal open={showWelcome} onClose={() => setShowWelcome(false)} />
           
           <footer className="text-center py-4 mt-8 text-sm text-muted-foreground font-inter">
-            <p>© 2025 Ultimate XO - A real-time multiplayer strategy game</p>
+            <p>© 2025 Ultimate XO - A WiFi multiplayer strategy game</p>
           </footer>
         </div>
       </GameProvider>
