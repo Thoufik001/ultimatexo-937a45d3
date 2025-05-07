@@ -35,6 +35,8 @@ interface GameState {
   playerReady: boolean;
   opponentReady: boolean;
   gameStarted: boolean;
+  syncStartTime: number | null;
+  waitingForSync: boolean;
 }
 
 interface GameSettings {
@@ -48,6 +50,8 @@ interface GameSettings {
   playerReady?: boolean;
   opponentReady?: boolean;
   gameStarted?: boolean;
+  syncStartTime?: number;
+  waitingForSync?: boolean;
 }
 
 type GameAction = 
@@ -70,7 +74,9 @@ type GameAction =
   | { type: 'CREATE_MULTIPLAYER_GAME'; gameCode: string; isHost: boolean }
   | { type: 'JOIN_MULTIPLAYER_GAME'; gameCode: string; opponentName: string; isHost: boolean }
   | { type: 'SET_OPPONENT_NAME'; name: string }
-  | { type: 'SET_MY_TURN'; isMyTurn: boolean };
+  | { type: 'SET_MY_TURN'; isMyTurn: boolean }
+  | { type: 'SYNC_START_GAME'; timestamp: number }
+  | { type: 'SET_WAITING_SYNC'; waiting: boolean };
 
 interface GameContextType {
   state: GameState;
@@ -87,6 +93,8 @@ interface GameContextType {
   updateSettings: (settings: GameSettings) => void;
   createMultiplayerGame: (gameCode: string) => void;
   joinMultiplayerGame: (gameCode: string) => void;
+  syncStartMultiplayer: (timestamp: number) => void;
+  setWaitingForSync: (waiting: boolean) => void;
 }
 
 const initialBoard = Array(9).fill(null);
@@ -118,7 +126,9 @@ const initialState: GameState = {
   isMyTurn: true,
   playerReady: false,
   opponentReady: false,
-  gameStarted: false
+  gameStarted: false,
+  syncStartTime: null,
+  waitingForSync: false
 };
 
 // Helper function to check if a player has won on a board
@@ -732,7 +742,25 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         playerName: action.settings.playerName || state.playerName,
         playerReady: action.settings.playerReady !== undefined ? action.settings.playerReady : state.playerReady,
         opponentReady: action.settings.opponentReady !== undefined ? action.settings.opponentReady : state.opponentReady,
-        gameStarted: action.settings.gameStarted !== undefined ? action.settings.gameStarted : state.gameStarted
+        gameStarted: action.settings.gameStarted !== undefined ? action.settings.gameStarted : state.gameStarted,
+        syncStartTime: action.settings.syncStartTime !== undefined ? action.settings.syncStartTime : state.syncStartTime,
+        waitingForSync: action.settings.waitingForSync !== undefined ? action.settings.waitingForSync : state.waitingForSync
+      };
+    }
+    
+    case 'SYNC_START_GAME': {
+      return {
+        ...state,
+        syncStartTime: action.timestamp,
+        waitingForSync: true,
+        gameStatus: 'init' // Keep it as init until we actually start
+      };
+    }
+    
+    case 'SET_WAITING_SYNC': {
+      return {
+        ...state,
+        waitingForSync: action.waiting
       };
     }
     
@@ -905,6 +933,43 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state.multiplayerMode]);
   
+  // Add effect for synchronized game start
+  useEffect(() => {
+    if (state.waitingForSync && state.syncStartTime) {
+      const now = Date.now();
+      
+      if (now >= state.syncStartTime) {
+        // Time to start!
+        dispatch({ type: 'START_GAME' });
+        toast.success("Game started! Both players synced.");
+      } else {
+        // Set timeout for the exact moment to start
+        const delay = state.syncStartTime - now;
+        const timer = setTimeout(() => {
+          dispatch({ type: 'START_GAME' });
+          toast.success("Game started! Both players synced.");
+        }, delay);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [state.waitingForSync, state.syncStartTime]);
+
+  // Listen for multiplayer game started event
+  useEffect(() => {
+    if (state.multiplayerMode) {
+      const handleGameStarted = (data: MultiplayerResponse) => {
+        if (data.type === 'game-started') {
+          dispatch({ type: 'SYNC_START_GAME', timestamp: data.timestamp });
+          toast.success("Game starting soon...");
+        }
+      };
+      
+      const unsubscribe = multiplayerService.addListener(handleGameStarted);
+      return () => unsubscribe();
+    }
+  }, [state.multiplayerMode]);
+  
   // Convenience functions
   const makeMove = (boardIndex: number, cellIndex: number) => {
     dispatch({ type: 'MAKE_MOVE', boardIndex, cellIndex });
@@ -958,6 +1023,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'JOIN_MULTIPLAYER_GAME', gameCode, opponentName: null, isHost: false });
   };
 
+  const syncStartMultiplayer = (timestamp: number) => {
+    dispatch({ type: 'SYNC_START_GAME', timestamp });
+  };
+  
+  const setWaitingForSync = (waiting: boolean) => {
+    dispatch({ type: 'SET_WAITING_SYNC', waiting });
+  };
+
   const contextValue = {
     state,
     makeMove,
@@ -972,7 +1045,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toggleBotMode,
     updateSettings,
     createMultiplayerGame,
-    joinMultiplayerGame
+    joinMultiplayerGame,
+    syncStartMultiplayer,
+    setWaitingForSync
   };
 
   return (

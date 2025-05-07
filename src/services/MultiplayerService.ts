@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 // Types for our multiplayer events
@@ -9,7 +8,8 @@ export type MultiplayerEvent =
   | { type: 'reconnect'; gameId: string; playerName: string }
   | { type: 'leave'; gameId: string }
   | { type: 'restart'; gameId: string }
-  | { type: 'ready'; gameId: string }; // Added ready status event
+  | { type: 'ready'; gameId: string }
+  | { type: 'start-game'; gameId: string; timestamp: number }; // Added start game with timestamp
 
 export type MultiplayerResponse = 
   | { type: 'game-created'; gameId: string; isHost: boolean }
@@ -18,7 +18,8 @@ export type MultiplayerResponse =
   | { type: 'opponent-joined'; opponentName: string }
   | { type: 'opponent-left' }
   | { type: 'opponent-restart' }
-  | { type: 'opponent-ready' } // Added ready status response
+  | { type: 'opponent-ready' }
+  | { type: 'game-started'; timestamp: number } // Added game started event
   | { type: 'error'; message: string };
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'ready';
@@ -398,7 +399,18 @@ class MultiplayerService {
         }
         break;
       }
-        
+      
+      case 'start-game': {
+        if (this.gameId) {
+          // Broadcast game start with timestamp to synchronize timers
+          this.sendLocalMessage({
+            type: 'game-started',
+            timestamp: event.timestamp
+          }, this.gameId);
+        }
+        break;
+      }
+      
       case 'reconnect': {
         // Just rejoin the game
         this.gameId = event.gameId;
@@ -412,7 +424,7 @@ class MultiplayerService {
         }, event.gameId);
         break;
       }
-        
+      
       default:
         break;
     }
@@ -485,6 +497,19 @@ class MultiplayerService {
     this.sendEvent({
       type: 'ready',
       gameId: this.gameId
+    });
+  }
+  
+  // Method to start the game with synchronized timestamp
+  public startGame(): void {
+    if (!this.gameId) return;
+    
+    const timestamp = Date.now() + 2000; // Start 2 seconds from now to allow for sync
+    
+    this.sendEvent({
+      type: 'start-game',
+      gameId: this.gameId,
+      timestamp
     });
   }
 }

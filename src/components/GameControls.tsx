@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,8 @@ import {
   RefreshCcw,
   Users,
   Wifi,
-  WifiOff
+  WifiOff,
+  Clock
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -67,8 +67,9 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
         
         // Check if we can start the game (both players ready)
         if (state.opponentReady) {
-          startGame();
-          toast.success("Both players ready! Game started.");
+          // Initiate a synchronized game start
+          toast.success("Both players ready! Syncing game start...");
+          multiplayerService.startGame();
         } else {
           toast.info("Waiting for opponent to be ready...");
         }
@@ -118,7 +119,7 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
       // In multiplayer mode, we need both the opponent to be connected and not already ready
       if (state.gameStatus === 'init') {
         // For init state, disable if opponent isn't connected or we're already marked as ready but opponent isn't
-        return !state.opponentName || (state.playerReady && !state.opponentReady);
+        return !state.opponentName || (state.playerReady && !state.opponentReady) || state.waitingForSync;
       }
       return false;
     }
@@ -165,6 +166,15 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
   };
   
   const getActionButtonContent = () => {
+    if (state.waitingForSync) {
+      return (
+        <>
+          <Clock className="mr-2 h-4 w-4 animate-pulse" />
+          Syncing game start...
+        </>
+      );
+    }
+    
     if (state.gameStatus === 'init') {
       if (state.multiplayerMode && state.playerReady && !state.opponentReady) {
         return (
@@ -223,8 +233,8 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
         <div className="grid grid-cols-2 gap-2">
           <Button 
             onClick={handleStart} 
-            disabled={isDisabledStart()}
-            className="w-full"
+            disabled={isDisabledStart() || state.waitingForSync}
+            className={`w-full ${state.waitingForSync ? 'animate-pulse' : ''}`}
           >
             {getActionButtonContent()}
           </Button>
@@ -232,7 +242,7 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
             onClick={handleRestart} 
             variant="outline" 
             className="w-full"
-            disabled={state.gameStatus === 'init'}
+            disabled={state.gameStatus === 'init' || state.waitingForSync}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             Restart

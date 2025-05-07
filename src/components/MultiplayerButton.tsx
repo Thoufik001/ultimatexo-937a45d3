@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff } from 'lucide-react';
+import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff, Clock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +17,7 @@ import { toast } from 'sonner';
 import { Badge } from "@/components/ui/badge";
 
 const MultiplayerButton: React.FC = () => {
-  const { state, updateSettings } = useGame();
+  const { state, updateSettings, syncStartMultiplayer } = useGame();
   const [showDialog, setShowDialog] = useState(false);
   const [gameCode, setGameCode] = useState('');
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
@@ -28,7 +27,7 @@ const MultiplayerButton: React.FC = () => {
   // Handle connection status updates
   useEffect(() => {
     if (state.multiplayerMode) {
-      const handleOpponentReady = (event: any) => {
+      const handleMultiplayerEvents = (event: any) => {
         if (event.type === 'opponent-ready') {
           updateSettings({
             ...state,
@@ -36,19 +35,18 @@ const MultiplayerButton: React.FC = () => {
           });
           
           toast.success("Opponent is ready to play!");
-          
-          // If both players are ready, we can start the game
-          if (state.playerReady) {
-            toast.success("Both players ready! Game starting...");
-          }
+        } else if (event.type === 'game-started') {
+          // Handle synchronized game start
+          syncStartMultiplayer(event.timestamp);
+          toast.success("Game is starting! Synchronizing...");
         }
       };
       
-      const unsubscribe = multiplayerService.addListener(handleOpponentReady);
+      const unsubscribe = multiplayerService.addListener(handleMultiplayerEvents);
       
       return () => unsubscribe();
     }
-  }, [state, updateSettings]);
+  }, [state, updateSettings, syncStartMultiplayer]);
   
   // Listen for opponent joined event
   useEffect(() => {
@@ -192,6 +190,11 @@ const MultiplayerButton: React.FC = () => {
     });
     
     toast.success("You are ready to play! Waiting for opponent...");
+    
+    // If both players are ready, host should initiate the synchronized game start
+    if (state.opponentReady && state.isHost) {
+      multiplayerService.startGame();
+    }
   };
   
   return (
@@ -200,12 +203,21 @@ const MultiplayerButton: React.FC = () => {
         className="w-full glass-card group" 
         variant="outline" 
         onClick={handleMultiplayerClick}
-        disabled={isConnecting}
+        disabled={isConnecting || state.waitingForSync}
       >
-        <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
-        <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Same-WiFi Multiplayer'}</span>
-        {!state.multiplayerMode && (
-          <span className={`ml-auto rounded-full w-2 h-2 bg-green-500 animate-pulse`}></span>
+        {state.waitingForSync ? (
+          <>
+            <Clock className="mr-2 h-5 w-5 text-primary animate-pulse" />
+            <span>Synchronizing Game Start...</span>
+          </>
+        ) : (
+          <>
+            <Users className="mr-2 h-5 w-5 text-primary group-hover:animate-pulse" />
+            <span>{state.multiplayerMode ? 'Multiplayer Mode Active' : 'Play Same-WiFi Multiplayer'}</span>
+            {!state.multiplayerMode && (
+              <span className={`ml-auto rounded-full w-2 h-2 bg-green-500 animate-pulse`}></span>
+            )}
+          </>
         )}
       </Button>
       

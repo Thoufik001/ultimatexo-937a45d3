@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameProvider } from '@/context/GameContext';
 import { ThemeProvider } from '@/hooks/use-theme';
@@ -11,7 +10,7 @@ import Confetti from '@/components/Confetti';
 import { useGame } from '@/context/GameContext';
 import MultiplayerButton from '@/components/MultiplayerButton';
 import { Button } from '@/components/ui/button';
-import { Copy, Link, Users, Wifi } from 'lucide-react';
+import { Copy, Link, Users, Wifi, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -38,20 +37,14 @@ const Game: React.FC = () => {
             opponentReady: true
           });
           
-          // If both players are ready, start the game
-          if (state.playerReady && !state.gameStarted) {
+          // If both players are ready and we're the host, initiate the game start
+          if (state.playerReady && !state.gameStarted && state.isHost) {
             toast.success("Both players are ready! Starting game...");
-            
-            // Set a short delay to ensure both clients have synced their state
-            setTimeout(() => {
-              const newState = {
-                ...state,
-                gameStarted: true,
-                opponentReady: true
-              };
-              updateSettings(newState);
-            }, 1000);
+            multiplayerService.startGame();
           }
+        } else if (event.type === 'game-started') {
+          // Game is starting with a synchronized timestamp
+          toast.success("Game starting soon...");
         }
       });
       
@@ -223,7 +216,16 @@ const Game: React.FC = () => {
                     Share Game Link
                   </Button>
                   
-                  {!state.playerReady && state.opponentName && (
+                  {state.waitingForSync && (
+                    <div className="p-2 border border-blue-500/30 rounded-md bg-blue-500/10">
+                      <div className="flex items-center gap-2 justify-center text-sm">
+                        <Clock className="h-4 w-4 animate-pulse" />
+                        <span>Synchronizing game start...</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!state.playerReady && state.opponentName && !state.waitingForSync && (
                     <Button 
                       className="w-full" 
                       variant="default" 
@@ -234,6 +236,11 @@ const Game: React.FC = () => {
                           playerReady: true
                         });
                         toast.success("You're ready to play!");
+                        
+                        // If both players are now ready and we're the host, start the game
+                        if (state.opponentReady && state.isHost) {
+                          multiplayerService.startGame();
+                        }
                       }}
                     >
                       <Wifi className="mr-2 h-4 w-4" />
