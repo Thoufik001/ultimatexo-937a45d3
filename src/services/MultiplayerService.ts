@@ -402,6 +402,7 @@ class MultiplayerService {
       
       case 'start-game': {
         if (this.gameId) {
+          console.log("Broadcasting game start with timestamp:", event.timestamp);
           // Broadcast game start with timestamp to synchronize timers
           this.sendLocalMessage({
             type: 'game-started',
@@ -504,7 +505,9 @@ class MultiplayerService {
   public startGame(): void {
     if (!this.gameId) return;
     
-    const timestamp = Date.now() + 2000; // Start 2 seconds from now to allow for sync
+    console.log("Starting game with synchronized timestamp");
+    // Start 3 seconds from now to allow for sync
+    const timestamp = Date.now() + 3000; 
     
     this.sendEvent({
       type: 'start-game',

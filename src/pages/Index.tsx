@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { GameProvider } from '@/context/GameContext';
+import { GameProvider, useGame } from '@/context/GameContext';
 import { ThemeProvider } from '@/hooks/use-theme';
 import GameBoard from '@/components/GameBoard';
 import GameControls from '@/components/GameControls';
@@ -7,7 +8,6 @@ import GameModal from '@/components/GameModal';
 import WelcomeModal from '@/components/WelcomeModal';
 import SettingsDrawer from '@/components/SettingsDrawer';
 import Confetti from '@/components/Confetti';
-import { useGame } from '@/context/GameContext';
 import MultiplayerButton from '@/components/MultiplayerButton';
 import { Button } from '@/components/ui/button';
 import { Copy, Link, Users, Wifi, Clock } from 'lucide-react';
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import multiplayerService from '@/services/MultiplayerService';
 
+// Game component that uses the context
 const Game: React.FC = () => {
   const {
     state,
@@ -317,6 +318,7 @@ const Game: React.FC = () => {
   );
 };
 
+// Main Index component that provides the context
 const Index: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   

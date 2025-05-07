@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { Badge } from "@/components/ui/badge";
 
 const MultiplayerButton: React.FC = () => {
-  const { state, updateSettings, syncStartMultiplayer } = useGame();
+  const { state, updateSettings, syncStartMultiplayer, setWaitingForSync } = useGame();
   const [showDialog, setShowDialog] = useState(false);
   const [gameCode, setGameCode] = useState('');
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
@@ -35,9 +35,19 @@ const MultiplayerButton: React.FC = () => {
           });
           
           toast.success("Opponent is ready to play!");
+          
+          // If both players are ready and I'm the host, initiate game start
+          if (state.playerReady && state.isHost) {
+            console.log("Both players ready, host initiating game start");
+            setTimeout(() => {
+              multiplayerService.startGame();
+            }, 1000);
+          }
         } else if (event.type === 'game-started') {
           // Handle synchronized game start
+          console.log("Received game-started event with timestamp:", event.timestamp);
           syncStartMultiplayer(event.timestamp);
+          setWaitingForSync(true);
           toast.success("Game is starting! Synchronizing...");
         }
       };
@@ -46,7 +56,7 @@ const MultiplayerButton: React.FC = () => {
       
       return () => unsubscribe();
     }
-  }, [state, updateSettings, syncStartMultiplayer]);
+  }, [state, updateSettings, syncStartMultiplayer, setWaitingForSync]);
   
   // Listen for opponent joined event
   useEffect(() => {
@@ -100,7 +110,8 @@ const MultiplayerButton: React.FC = () => {
         botMode: false,
         difficulty: state.difficulty,
         playerReady: false,
-        opponentReady: false
+        opponentReady: false,
+        waitingForSync: false
       });
       
       localStorage.setItem('playerName', playerName);
@@ -193,6 +204,7 @@ const MultiplayerButton: React.FC = () => {
     
     // If both players are ready, host should initiate the synchronized game start
     if (state.opponentReady && state.isHost) {
+      console.log("Both players ready, initiating game start");
       multiplayerService.startGame();
     }
   };

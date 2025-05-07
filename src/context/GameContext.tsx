@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/components/ui/use-toast";
 import multiplayerService, { MultiplayerResponse } from '@/services/MultiplayerService';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Player = 'X' | 'O' | null;
 type Board = Array<Player>;
@@ -17,7 +16,7 @@ interface GameState {
   gameStatus: 'init' | 'playing' | 'paused' | 'game-over';
   winner: Player;
   turnTimeLimit: number;
-  turnTimeRemaining: number;
+  turnTimeRemaining: number | null;
   isMuted: boolean;
   moveHistory: Array<{ boards: Boards, boardStatus: BoardStatus, boardIndex: number, cellIndex: number }>;
   currentMoveIndex: number;
@@ -432,7 +431,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         nextBoardIndex: nextBoard,
         gameStatus: gameOver ? 'game-over' : state.gameStatus,
         winner: gameWinner,
-        turnTimeRemaining: state.turnTimeLimit,
+        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null,
         moveHistory: newHistory,
         currentMoveIndex: state.currentMoveIndex + 1,
         showConfetti: gameWinner !== null,
@@ -464,7 +463,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     case 'START_GAME': {
       return {
         ...state,
-        gameStatus: 'playing'
+        gameStatus: 'playing',
+        waitingForSync: false,
+        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null
       };
     }
     
@@ -497,7 +498,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         currentMoveIndex: prevMoveIndex,
         gameStatus: 'playing',
         winner: null,
-        turnTimeRemaining: state.turnTimeLimit,
+        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null,
         showConfetti: false
       };
     }
@@ -523,7 +524,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         currentMoveIndex: nextMoveIndex,
         gameStatus: gameOver ? 'game-over' : 'playing',
         winner: boardWinner,
-        turnTimeRemaining: state.turnTimeLimit,
+        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null,
         showConfetti: boardWinner !== null
       };
     }
@@ -560,7 +561,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       newState.currentPlayer = 'X';
       newState.gameStatus = 'init';
       newState.winner = null;
-      newState.turnTimeRemaining = state.turnTimeLimit;
+      newState.turnTimeRemaining = state.timerEnabled ? state.turnTimeLimit : null;
       newState.moveHistory = [];
       newState.currentMoveIndex = -1;
       
@@ -595,7 +596,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'TICK_TIMER': {
-      if (state.gameStatus !== 'playing' || !state.timerEnabled || state.turnTimeRemaining <= 0) {
+      if (state.gameStatus !== 'playing' || !state.timerEnabled || state.turnTimeRemaining === null || state.turnTimeRemaining <= 0 || state.waitingForSync) {
         return state;
       }
       
@@ -623,7 +624,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         currentPlayer: state.currentPlayer === 'X' ? 'O' : 'X',
-        turnTimeRemaining: state.turnTimeLimit, // Reset timer for next player
+        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null, // Reset timer for next player
       };
     }
     
@@ -682,7 +683,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         nextBoardIndex: nextBoard,
         gameStatus: gameOver ? 'game-over' : state.gameStatus,
         winner: gameWinner,
-        turnTimeRemaining: state.turnTimeLimit,
+        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null,
         moveHistory: newHistory,
         currentMoveIndex: state.currentMoveIndex + 1,
         showConfetti: gameWinner !== null,
@@ -753,7 +754,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         ...state,
         syncStartTime: action.timestamp,
         waitingForSync: true,
-        gameStatus: 'init' // Keep it as init until we actually start
+        gameStatus: 'init', // Keep it as init until we actually start
+        playerReady: true,
+        opponentReady: true
       };
     }
     
@@ -817,9 +820,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state.botMode, state.gameStatus, state.currentPlayer]);
 
-  // Timer effect
+  // Timer effect - Modified to handle multiplayer sync
   useEffect(() => {
-    if (state.gameStatus !== 'playing' || !state.timerEnabled) return;
+    // Don't run timer if game is not in playing status, timer is not enabled,
+    // or we're waiting for sync in multiplayer mode
+    if (state.gameStatus !== 'playing' || 
+        !state.timerEnabled || 
+        state.turnTimeRemaining === null || 
+        state.waitingForSync) return;
 
     const timer = setInterval(() => {
       dispatch({ type: 'TICK_TIMER' });
@@ -843,7 +851,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return () => clearInterval(timer);
-  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled, state.currentPlayer, state.playerSymbols]);
+  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled, state.currentPlayer, state.playerSymbols, state.waitingForSync]);
 
   // Game over notification
   useEffect(() => {
@@ -945,6 +953,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Set timeout for the exact moment to start
         const delay = state.syncStartTime - now;
+        console.log(`Waiting ${delay}ms to start the game at ${new Date(state.syncStartTime).toLocaleTimeString()}`);
+        
         const timer = setTimeout(() => {
           dispatch({ type: 'START_GAME' });
           toast.success("Game started! Both players synced.");

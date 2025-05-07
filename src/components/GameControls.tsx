@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
@@ -39,13 +40,22 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
   // Listen for the opponent-ready event in multiplayer mode
   useEffect(() => {
     if (state.multiplayerMode) {
+      console.log("Setting up opponent-ready listener");
       const unsubscribe = multiplayerService.addListener((event) => {
+        console.log("Multiplayer event received in GameControls:", event);
         if (event.type === 'opponent-ready') {
           // Opponent is ready to play, update our state
+          console.log("Opponent is ready to play!");
           updateSettings({
             ...state,
             opponentReady: true
           });
+          
+          // Check if we should start the game (both players ready and host)
+          if (state.playerReady && state.isHost) {
+            console.log("We're the host and both players ready - initiating start");
+            multiplayerService.startGame();
+          }
         }
       });
       
@@ -54,8 +64,10 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
   }, [state.multiplayerMode, updateSettings, state]);
   
   const handleStart = () => {
+    console.log("Start button pressed. Game status:", state.gameStatus);
     if (state.gameStatus === 'init') {
       if (state.multiplayerMode) {
+        console.log("In multiplayer mode. playerReady:", state.playerReady, "opponentReady:", state.opponentReady);
         // In multiplayer mode, mark ourselves as ready
         multiplayerService.setReady();
         
@@ -69,7 +81,10 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
         if (state.opponentReady) {
           // Initiate a synchronized game start
           toast.success("Both players ready! Syncing game start...");
-          multiplayerService.startGame();
+          if (state.isHost) {
+            console.log("We're the host and both ready - starting game");
+            multiplayerService.startGame();
+          }
         } else {
           toast.info("Waiting for opponent to be ready...");
         }
