@@ -32,6 +32,9 @@ interface GameState {
   opponentName: string | null;
   isHost: boolean;
   isMyTurn: boolean;
+  playerReady: boolean;
+  opponentReady: boolean;
+  gameStarted: boolean;
 }
 
 interface GameSettings {
@@ -109,7 +112,10 @@ const initialState: GameState = {
   gameCode: '',
   opponentName: null,
   isHost: false,
-  isMyTurn: true
+  isMyTurn: true,
+  playerReady: false,
+  opponentReady: false,
+  gameStarted: false
 };
 
 // Helper function to check if a player has won on a board
@@ -528,7 +534,10 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         gameCode: state.gameCode,
         opponentName: state.opponentName,
         isHost: state.isHost,
-        isMyTurn: state.multiplayerMode ? (state.isHost ? true : false) : true
+        isMyTurn: state.multiplayerMode ? (state.isHost ? true : false) : true,
+        playerReady: false,
+        opponentReady: false,
+        gameStarted: false
       };
       
       // Reset all boards and game status
