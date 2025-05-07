@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Button } from "@/components/ui/button";
 import { 
@@ -10,12 +10,15 @@ import {
   Pause, 
   Bot,
   RefreshCcw,
-  Users
+  Users,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import multiplayerService from '@/services/MultiplayerService';
 
 interface GameControlsProps {
   onOpenSettings: () => void;
@@ -33,9 +36,46 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     restartGame
   } = useGame();
   
+  // Listen for the opponent-ready event in multiplayer mode
+  useEffect(() => {
+    if (state.multiplayerMode) {
+      const unsubscribe = multiplayerService.addListener((event) => {
+        if (event.type === 'opponent-ready') {
+          // Opponent is ready to play, update our state
+          updateSettings({
+            ...state,
+            opponentReady: true
+          });
+        }
+      });
+      
+      return () => unsubscribe();
+    }
+  }, [state.multiplayerMode, updateSettings, state]);
+  
   const handleStart = () => {
     if (state.gameStatus === 'init') {
-      startGame();
+      if (state.multiplayerMode) {
+        // In multiplayer mode, mark ourselves as ready
+        multiplayerService.setReady();
+        
+        // Update our local state
+        updateSettings({
+          ...state,
+          playerReady: true
+        });
+        
+        // Check if we can start the game (both players ready)
+        if (state.opponentReady) {
+          startGame();
+          toast.success("Both players ready! Game started.");
+        } else {
+          toast.info("Waiting for opponent to be ready...");
+        }
+      } else {
+        // In single player mode, just start the game directly
+        startGame();
+      }
     } else if (state.gameStatus === 'paused') {
       resumeGame();
     } else if (state.gameStatus === 'playing') {
@@ -69,12 +109,76 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     });
   };
   
+  const isDisabledStart = () => {
+    if (state.gameStatus === 'game-over') {
+      return !state.multiplayerMode;
+    }
+    
+    if (state.multiplayerMode) {
+      // In multiplayer mode, we need both the opponent to be connected and not already ready
+      if (state.gameStatus === 'init') {
+        // For init state, disable if opponent isn't connected or we're already marked as ready but opponent isn't
+        return !state.opponentName || (state.playerReady && !state.opponentReady);
+      }
+      return false;
+    }
+    
+    return false;
+  };
+  
+  const getConnectionStatus = () => {
+    if (!state.multiplayerMode) return null;
+    
+    if (!state.opponentName) {
+      return (
+        <Badge variant="outline" className="text-xs animate-pulse">
+          <WifiOff className="h-3 w-3 mr-1 text-red-500" />
+          Waiting for opponent...
+        </Badge>
+      );
+    }
+    
+    if (state.playerReady && state.opponentReady) {
+      return (
+        <Badge variant="default" className="text-xs bg-green-500">
+          <Wifi className="h-3 w-3 mr-1" />
+          Both players ready
+        </Badge>
+      );
+    }
+    
+    if (state.playerReady) {
+      return (
+        <Badge variant="outline" className="text-xs">
+          <Wifi className="h-3 w-3 mr-1 text-yellow-500" />
+          Waiting for opponent...
+        </Badge>
+      );
+    }
+    
+    return (
+      <Badge variant="default" className="text-xs bg-green-500/50">
+        <Wifi className="h-3 w-3 mr-1" />
+        Connected
+      </Badge>
+    );
+  };
+  
   const getActionButtonContent = () => {
     if (state.gameStatus === 'init') {
+      if (state.multiplayerMode && state.playerReady && !state.opponentReady) {
+        return (
+          <>
+            <Wifi className="mr-2 h-4 w-4 animate-pulse" />
+            Waiting for opponent
+          </>
+        );
+      }
+      
       return (
         <>
           <Play className="mr-2 h-4 w-4" />
-          Start Game
+          {state.multiplayerMode ? (state.playerReady ? "Waiting..." : "Ready to Play") : "Start Game"}
         </>
       );
     } else if (state.gameStatus === 'paused') {
@@ -119,8 +223,7 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
         <div className="grid grid-cols-2 gap-2">
           <Button 
             onClick={handleStart} 
-            disabled={(state.gameStatus === 'game-over' && !state.multiplayerMode) || 
-                     (state.multiplayerMode && !state.opponentName && state.gameStatus !== 'game-over')}
+            disabled={isDisabledStart()}
             className="w-full"
           >
             {getActionButtonContent()}
@@ -154,10 +257,7 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
             <label htmlFor="bot-mode-control" className="text-sm font-medium cursor-pointer">Bot Mode</label>
           </div>
           {state.multiplayerMode ? (
-            <Badge variant="default" className="text-xs animate-pulse">
-              <Users className="h-3 w-3 mr-1" />
-              Local Multiplayer
-            </Badge>
+            getConnectionStatus()
           ) : (
             <Badge variant={state.botMode ? "default" : "outline"} className="text-xs">
               {state.botMode ? `Bot: ${state.difficulty}` : "Player vs Player"}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, RefreshCcw, Copy, Share2, Wifi } from 'lucide-react';
+import { Users, RefreshCcw, Copy, Share2, Wifi, WifiOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,44 @@ const MultiplayerButton: React.FC = () => {
   const [playerName, setPlayerName] = useState(state.playerName || localStorage.getItem('playerName') || '');
   const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  
+  // Handle connection status updates
+  useEffect(() => {
+    if (state.multiplayerMode) {
+      const handleOpponentReady = (event: any) => {
+        if (event.type === 'opponent-ready') {
+          updateSettings({
+            ...state,
+            opponentReady: true
+          });
+          
+          toast.success("Opponent is ready to play!");
+          
+          // If both players are ready, we can start the game
+          if (state.playerReady) {
+            toast.success("Both players ready! Game starting...");
+          }
+        }
+      };
+      
+      const unsubscribe = multiplayerService.addListener(handleOpponentReady);
+      
+      return () => unsubscribe();
+    }
+  }, [state, updateSettings]);
+  
+  // Listen for opponent joined event
+  useEffect(() => {
+    const handleOpponentJoined = (event: any) => {
+      if (event.type === 'opponent-joined') {
+        toast.success(`${event.opponentName} joined the game!`);
+      }
+    };
+    
+    const unsubscribe = multiplayerService.addListener(handleOpponentJoined);
+    
+    return () => unsubscribe();
+  }, []);
   
   // Auto-select text when focused
   const handleCodeFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -62,7 +100,9 @@ const MultiplayerButton: React.FC = () => {
         timerEnabled: true, // Enable timer for multiplayer
         playerSymbols: state.playerSymbols,
         botMode: false,
-        difficulty: state.difficulty
+        difficulty: state.difficulty,
+        playerReady: false,
+        opponentReady: false
       });
       
       localStorage.setItem('playerName', playerName);
@@ -97,7 +137,9 @@ const MultiplayerButton: React.FC = () => {
         timerEnabled: true, // Enable timer for multiplayer
         playerSymbols: state.playerSymbols,
         botMode: false,
-        difficulty: state.difficulty
+        difficulty: state.difficulty,
+        playerReady: false,
+        opponentReady: false
       });
       
       localStorage.setItem('playerName', playerName);
@@ -129,6 +171,29 @@ const MultiplayerButton: React.FC = () => {
     }
   };
   
+  const handleReadyClick = () => {
+    if (state.playerReady) {
+      toast.info("You're already marked as ready");
+      return;
+    }
+    
+    if (!state.opponentName) {
+      toast.error("Waiting for an opponent to join");
+      return;
+    }
+    
+    // Mark as ready
+    multiplayerService.setReady();
+    
+    // Update local state
+    updateSettings({
+      ...state,
+      playerReady: true
+    });
+    
+    toast.success("You are ready to play! Waiting for opponent...");
+  };
+  
   return (
     <>
       <Button 
@@ -154,6 +219,18 @@ const MultiplayerButton: React.FC = () => {
             <Share2 className="mr-2 h-4 w-4" />
             Share Game
           </Button>
+          
+          {state.opponentName && !state.playerReady && (
+            <Button
+              className="flex-1"
+              variant="default"
+              onClick={handleReadyClick}
+              disabled={state.playerReady}
+            >
+              <Wifi className="mr-2 h-4 w-4" />
+              Ready to Play
+            </Button>
+          )}
         </div>
       )}
       
@@ -174,6 +251,31 @@ const MultiplayerButton: React.FC = () => {
             >
               <Copy className="h-3.5 w-3.5" />
             </Button>
+          </div>
+          
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span>Connection Status:</span>
+            {!state.opponentName ? (
+              <Badge variant="outline" className="animate-pulse">
+                <WifiOff className="h-3 w-3 mr-1 text-yellow-500" />
+                Waiting for player...
+              </Badge>
+            ) : (
+              <Badge variant={state.playerReady && state.opponentReady ? "default" : "outline"} 
+                className={state.playerReady && state.opponentReady ? "bg-green-500" : ""}>
+                <Wifi className="h-3 w-3 mr-1" />
+                {state.playerReady && state.opponentReady ? "Both Ready" : 
+                  state.playerReady ? "Waiting for opponent" : "Not Ready"}
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {state.multiplayerMode && state.gameStatus === 'init' && state.opponentName && !state.playerReady && (
+        <div className="mt-2 p-2 border border-green-500/30 rounded-md bg-green-500/10">
+          <div className="text-sm text-center">
+            Click <strong>Ready to Play</strong> when you're ready to start the game
           </div>
         </div>
       )}

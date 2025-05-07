@@ -8,7 +8,8 @@ export type MultiplayerEvent =
   | { type: 'move'; boardIndex: number; cellIndex: number; gameId: string }
   | { type: 'reconnect'; gameId: string; playerName: string }
   | { type: 'leave'; gameId: string }
-  | { type: 'restart'; gameId: string };
+  | { type: 'restart'; gameId: string }
+  | { type: 'ready'; gameId: string }; // Added ready status event
 
 export type MultiplayerResponse = 
   | { type: 'game-created'; gameId: string; isHost: boolean }
@@ -17,7 +18,10 @@ export type MultiplayerResponse =
   | { type: 'opponent-joined'; opponentName: string }
   | { type: 'opponent-left' }
   | { type: 'opponent-restart' }
+  | { type: 'opponent-ready' } // Added ready status response
   | { type: 'error'; message: string };
+
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'ready';
 
 class MultiplayerService {
   private gameId: string | null = null;
@@ -26,6 +30,8 @@ class MultiplayerService {
   private storageKey = 'ultimatexo_events';
   private pingInterval: NodeJS.Timeout | null = null;
   private lastPongTime: number = 0;
+  private connectionStatus: ConnectionStatus = 'disconnected';
+  private isReady: boolean = false;
   
   constructor() {
     // Setup storage event listener for cross-tab/window communication
@@ -36,6 +42,16 @@ class MultiplayerService {
     
     // Setup beforeunload listener to clean up when page closes
     this.setupBeforeUnloadListener();
+  }
+  
+  // Get current connection status
+  public getConnectionStatus(): ConnectionStatus {
+    return this.connectionStatus;
+  }
+  
+  // Get ready status
+  public isPlayerReady(): boolean {
+    return this.isReady;
   }
   
   private setupBeforeUnloadListener(): void {
@@ -53,6 +69,7 @@ class MultiplayerService {
     const pendingGameId = localStorage.getItem('ultimatexo_gameId');
     
     if (pendingGameId) {
+      this.connectionStatus = 'connecting';
       const playerName = localStorage.getItem('playerName') || 'Player';
       console.log(`Found pending game ${pendingGameId}, reconnecting as ${playerName}`);
       
@@ -86,6 +103,16 @@ class MultiplayerService {
         if (event.key && event.key.startsWith('ultimatexo_pong_') && event.newValue) {
           // Record the last time we received a pong
           this.lastPongTime = Date.now();
+          this.connectionStatus = 'connected';
+          return;
+        }
+        
+        // Handle ready status from localStorage
+        if (event.key && event.key === 'ultimatexo_ready_' + this.gameId && event.newValue) {
+          // Notify that opponent is ready
+          this.listeners.forEach(listener => listener({
+            type: 'opponent-ready'
+          }));
           return;
         }
         
@@ -121,6 +148,7 @@ class MultiplayerService {
         const timeSinceLastPong = Date.now() - this.lastPongTime;
         if (this.lastPongTime > 0 && timeSinceLastPong > 5000) {
           // Notify that we haven't received pongs recently
+          this.connectionStatus = 'disconnected';
           this.listeners.forEach(listener => listener({
             type: 'opponent-left'
           }));
@@ -154,6 +182,15 @@ class MultiplayerService {
     
     // Send to listeners
     this.listeners.forEach(listener => listener(gameData));
+    
+    // Update connection status based on message type
+    if (gameData.type === 'opponent-joined') {
+      this.connectionStatus = 'connected';
+    } else if (gameData.type === 'opponent-left') {
+      this.connectionStatus = 'disconnected';
+    } else if (gameData.type === 'opponent-ready') {
+      this.connectionStatus = 'ready';
+    }
   }
   
   // We use this to detect our own messages
@@ -228,6 +265,7 @@ class MultiplayerService {
       case 'create': {
         const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase();
         this.gameId = newGameId;
+        this.connectionStatus = 'connecting';
         
         // Setup local connection for this game
         this.setupLocalConnection(newGameId);
@@ -257,6 +295,7 @@ class MultiplayerService {
         
       case 'join': {
         this.gameId = event.gameId;
+        this.connectionStatus = 'connecting';
         
         // Setup local connection for this game
         this.setupLocalConnection(event.gameId);
@@ -320,6 +359,8 @@ class MultiplayerService {
         localStorage.removeItem('ultimatexo_gameId');
         localStorage.removeItem('ultimatexo_isHost');
         this.gameId = null;
+        this.connectionStatus = 'disconnected';
+        this.isReady = false;
         
         // Stop network monitoring
         this.stopNetworkMonitoring();
@@ -341,11 +382,28 @@ class MultiplayerService {
         }
         break;
       }
+      
+      case 'ready': {
+        // Set our own ready state
+        this.isReady = true;
+        
+        // Notify others that we're ready to play through localStorage
+        localStorage.setItem('ultimatexo_ready_' + event.gameId, 'true');
+        
+        // Broadcast ready status to all connected players
+        if (this.gameId) {
+          this.sendLocalMessage({
+            type: 'opponent-ready'
+          }, this.gameId);
+        }
+        break;
+      }
         
       case 'reconnect': {
         // Just rejoin the game
         this.gameId = event.gameId;
         this.setupLocalConnection(event.gameId);
+        this.connectionStatus = 'connecting';
         
         // Notify other players we're back
         this.sendLocalMessage({
@@ -417,6 +475,15 @@ class MultiplayerService {
     
     this.sendEvent({
       type: 'leave',
+      gameId: this.gameId
+    });
+  }
+  
+  public setReady(): void {
+    if (!this.gameId) return;
+    
+    this.sendEvent({
+      type: 'ready',
       gameId: this.gameId
     });
   }

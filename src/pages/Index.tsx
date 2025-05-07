@@ -21,11 +21,43 @@ const Game: React.FC = () => {
   const {
     state,
     resumeGame,
-    restartGame
+    restartGame,
+    updateSettings
   } = useGame();
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRestartDialog, setShowRestartDialog] = useState(false);
+  
+  // Effect to handle multiplayer events and sync game state
+  useEffect(() => {
+    if (state.multiplayerMode) {
+      const unsubscribe = multiplayerService.addListener((event) => {
+        if (event.type === 'opponent-ready') {
+          updateSettings({
+            ...state,
+            opponentReady: true
+          });
+          
+          // If both players are ready, start the game
+          if (state.playerReady && !state.gameStarted) {
+            toast.success("Both players are ready! Starting game...");
+            
+            // Set a short delay to ensure both clients have synced their state
+            setTimeout(() => {
+              const newState = {
+                ...state,
+                gameStarted: true,
+                opponentReady: true
+              };
+              updateSettings(newState);
+            }, 1000);
+          }
+        }
+      });
+      
+      return () => unsubscribe();
+    }
+  }, [state, updateSettings]);
   
   useEffect(() => {
     if (state.gameStatus === 'game-over' || state.gameStatus === 'paused') {
@@ -63,8 +95,15 @@ const Game: React.FC = () => {
   const handleRestartConfirmed = () => {
     restartGame();
     
-    // In multiplayer mode, notify other players
+    // Reset ready states in multiplayer mode
     if (state.multiplayerMode) {
+      updateSettings({
+        ...state,
+        playerReady: false,
+        opponentReady: false,
+        gameStarted: false
+      });
+      
       multiplayerService.restartGame();
     }
     
@@ -152,10 +191,12 @@ const Game: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Connection:</span>
+                      <span className="text-sm text-muted-foreground">Player Status:</span>
                       <div className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-600 flex items-center gap-1">
                         <Wifi className="h-3 w-3" />
-                        <span>WiFi Multiplayer</span>
+                        <span>
+                          {state.playerReady ? (state.opponentReady ? "Both Ready" : "You're Ready") : "Not Ready"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -181,6 +222,24 @@ const Game: React.FC = () => {
                     <Link className="mr-2 h-4 w-4" />
                     Share Game Link
                   </Button>
+                  
+                  {!state.playerReady && state.opponentName && (
+                    <Button 
+                      className="w-full" 
+                      variant="default" 
+                      onClick={() => {
+                        multiplayerService.setReady();
+                        updateSettings({
+                          ...state,
+                          playerReady: true
+                        });
+                        toast.success("You're ready to play!");
+                      }}
+                    >
+                      <Wifi className="mr-2 h-4 w-4" />
+                      I'm Ready to Play
+                    </Button>
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -195,7 +254,7 @@ const Game: React.FC = () => {
                   <li>Watch the timer - if it runs out, you lose your turn</li>
                   <li>Try different AI difficulty levels in bot mode</li>
                   <li>Challenge friends on the same WiFi in multiplayer mode</li>
-                  <li>Just share the game code with players on same network</li>
+                  <li>Both players must click "Ready" before the game can start</li>
                 </ul>
               </div>
             </TabsContent>
