@@ -45,6 +45,9 @@ interface GameSettings {
   difficulty: 'easy' | 'medium' | 'hard';
   multiplayerMode?: boolean;
   playerName?: string;
+  playerReady?: boolean;
+  opponentReady?: boolean;
+  gameStarted?: boolean;
 }
 
 type GameAction = 
@@ -726,7 +729,10 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         botMode: action.settings.botMode,
         difficulty: action.settings.difficulty,
         multiplayerMode: action.settings.multiplayerMode || state.multiplayerMode,
-        playerName: action.settings.playerName || state.playerName
+        playerName: action.settings.playerName || state.playerName,
+        playerReady: action.settings.playerReady !== undefined ? action.settings.playerReady : state.playerReady,
+        opponentReady: action.settings.opponentReady !== undefined ? action.settings.opponentReady : state.opponentReady,
+        gameStarted: action.settings.gameStarted !== undefined ? action.settings.gameStarted : state.gameStarted
       };
     }
     
