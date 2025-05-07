@@ -8,8 +8,6 @@ import {
   RotateCcw, 
   Play, 
   Pause, 
-  Volume2, 
-  VolumeX,
   Bot,
   RefreshCcw,
   Users
@@ -30,7 +28,6 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     startGame, 
     pauseGame, 
     resumeGame, 
-    toggleSound,
     toggleBotMode,
     updateSettings,
     restartGame
@@ -139,25 +136,10 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
           </Button>
         </div>
         
-        <div className="grid grid-cols-2 gap-2">
-          <Button onClick={toggleSound} variant="outline" className="w-full">
-            {state.isMuted ? (
-              <>
-                <VolumeX className="mr-2 h-4 w-4" />
-                Unmute
-              </>
-            ) : (
-              <>
-                <Volume2 className="mr-2 h-4 w-4" />
-                Mute
-              </>
-            )}
-          </Button>
-          <Button onClick={onOpenSettings} variant="outline" className="w-full">
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </Button>
-        </div>
+        <Button onClick={onOpenSettings} variant="outline" className="w-full">
+          <Settings className="mr-2 h-4 w-4" />
+          Settings
+        </Button>
       </div>
       
       <div className="pt-2">

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Users, RefreshCcw, Copy, Share2, Wifi, MessageCircle } from 'lucide-react';
+import { Users, RefreshCcw, Copy, Share2, Wifi } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -58,7 +58,7 @@ const MultiplayerButton: React.FC = () => {
         ...state,
         playerName,
         multiplayerMode: true,
-        turnTimeLimit: state.turnTimeLimit,
+        turnTimeLimit: 30, // Set a reasonable time limit for multiplayer
         timerEnabled: true, // Enable timer for multiplayer
         playerSymbols: state.playerSymbols,
         botMode: false,
@@ -68,7 +68,6 @@ const MultiplayerButton: React.FC = () => {
       localStorage.setItem('playerName', playerName);
       multiplayerService.createGame(playerName);
       setShowDialog(false);
-      toast.success("Creating new multiplayer game...");
     } catch (error) {
       toast.error("There was an error creating the game");
     } finally {
@@ -94,7 +93,7 @@ const MultiplayerButton: React.FC = () => {
         ...state,
         playerName,
         multiplayerMode: true,
-        turnTimeLimit: state.turnTimeLimit,
+        turnTimeLimit: 30, // Set a reasonable time limit for multiplayer
         timerEnabled: true, // Enable timer for multiplayer
         playerSymbols: state.playerSymbols,
         botMode: false,
@@ -104,7 +103,6 @@ const MultiplayerButton: React.FC = () => {
       localStorage.setItem('playerName', playerName);
       multiplayerService.joinGame(gameCode.toUpperCase().trim(), playerName);
       setShowDialog(false);
-      toast.success("Joining game...");
     } catch (error) {
       toast.error("There was an error joining the game");
     } finally {

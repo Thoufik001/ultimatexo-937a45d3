@@ -15,6 +15,7 @@ import { Copy, Link, Users, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import multiplayerService from '@/services/MultiplayerService';
 
 const Game: React.FC = () => {
   const {
@@ -34,6 +35,19 @@ const Game: React.FC = () => {
     }
   }, [state.gameStatus]);
   
+  // Listen for multiplayer restart event
+  useEffect(() => {
+    const unsubscribe = multiplayerService.addListener((event) => {
+      if (event.type === 'opponent-restart') {
+        // Opponent requested a restart
+        restartGame();
+        toast.info('Game restarted by opponent');
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [restartGame]);
+  
   const handleCloseModal = () => {
     if (state.gameStatus === 'paused') {
       resumeGame();
@@ -48,6 +62,12 @@ const Game: React.FC = () => {
   // Force a complete game restart when confirmed
   const handleRestartConfirmed = () => {
     restartGame();
+    
+    // In multiplayer mode, notify other players
+    if (state.multiplayerMode) {
+      multiplayerService.restartGame();
+    }
+    
     setShowRestartDialog(false);
     toast.success("Game restarted!");
   };
