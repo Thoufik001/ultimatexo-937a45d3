@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameProvider, useGame } from '@/context/GameContext';
 import { ThemeProvider } from '@/hooks/use-theme';
 import GameBoard from '@/components/GameBoard';
@@ -142,7 +142,15 @@ const Game: React.FC = () => {
 
 // Main Index component that provides the context
 const Index: React.FC = () => {
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
+  
+  useEffect(() => {
+    // Check if user has chosen not to show the welcome modal
+    const hideWelcomeModal = localStorage.getItem('hideWelcomeModal');
+    if (hideWelcomeModal !== 'true') {
+      setShowWelcome(true);
+    }
+  }, []);
   
   return (
     <ThemeProvider>
