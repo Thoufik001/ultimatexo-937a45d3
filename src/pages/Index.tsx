@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameProvider, useGame } from '@/context/GameContext';
 import { ThemeProvider } from '@/hooks/use-theme';
@@ -22,7 +21,7 @@ const Game: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRestartDialog, setShowRestartDialog] = useState(false);
-  
+
   // Show/hide game over modal
   React.useEffect(() => {
     if (state.gameStatus === 'game-over' || state.gameStatus === 'paused') {
@@ -31,39 +30,32 @@ const Game: React.FC = () => {
       setShowModal(false);
     }
   }, [state.gameStatus]);
-  
   const handleCloseModal = () => {
     if (state.gameStatus === 'paused') {
       resumeGame();
     }
     setShowModal(false);
   };
-  
   const handleOpenSettings = () => {
     setShowSettings(true);
   };
-  
+
   // Force a complete game restart when confirmed
   const handleRestartConfirmed = () => {
     restartGame();
     setShowRestartDialog(false);
     toast.success("Game restarted!");
   };
-  
+
   // Show confirmation before restarting
   const handleRestartRequested = () => {
     setShowRestartDialog(true);
   };
-  
-  return (
-    <>
+  return <>
       <div className="flex flex-col lg:flex-row gap-4 w-full max-w-7xl mx-auto">
         {/* Left Column - Controls and Info */}
         <div className="w-full lg:w-1/3 flex flex-col gap-4">
-          <GameControls 
-            onOpenSettings={handleOpenSettings}
-            onRestart={handleRestartRequested}
-          />
+          <GameControls onOpenSettings={handleOpenSettings} onRestart={handleRestartRequested} />
           
           <div className="glass-card p-4 rounded-lg">
             <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
@@ -121,14 +113,12 @@ const Game: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
-  );
+    </>;
 };
 
 // Main Index component that provides the context
 const Index: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(false);
-  
   useEffect(() => {
     // Check if user has chosen not to show the welcome modal
     const hideWelcomeModal = localStorage.getItem('hideWelcomeModal');
@@ -136,14 +126,12 @@ const Index: React.FC = () => {
       setShowWelcome(true);
     }
   }, []);
-  
-  return (
-    <ThemeProvider>
+  return <ThemeProvider>
       <GameProvider>
         <div className="min-h-screen flex flex-col p-4 bg-background">
           <header className="text-center my-6">
-            <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">Ultimate XO</h1>
-            <p className="text-muted-foreground font-inter">Play against our unbeatable AI</p>
+            <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">UltimateXO</h1>
+            <p className="text-muted-foreground font-inter">Ultimate Strategy - Ultimate Challenge</p>
           </header>
           
           <main className="flex-grow">
@@ -157,8 +145,6 @@ const Index: React.FC = () => {
           </footer>
         </div>
       </GameProvider>
-    </ThemeProvider>
-  );
+    </ThemeProvider>;
 };
-
 export default Index;
