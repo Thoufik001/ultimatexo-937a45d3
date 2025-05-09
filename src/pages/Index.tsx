@@ -8,9 +8,7 @@ import GameModal from '@/components/GameModal';
 import WelcomeModal from '@/components/WelcomeModal';
 import SettingsDrawer from '@/components/SettingsDrawer';
 import Confetti from '@/components/Confetti';
-import MultiplayerButton from '@/components/MultiplayerButton';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
@@ -67,31 +65,18 @@ const Game: React.FC = () => {
             onRestart={handleRestartRequested}
           />
           
-          <Tabs defaultValue="instructions" className="w-full">
-            <TabsList className="w-full grid grid-cols-2">
-              <TabsTrigger value="bot-info">Bot Info</TabsTrigger>
-              <TabsTrigger value="instructions">Instructions</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="bot-info" className="space-y-4">
-              <MultiplayerButton />
-            </TabsContent>
-            
-            <TabsContent value="instructions" className="mt-0">
-              <div className="glass-card p-4 rounded-lg">
-                <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
-                <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                  <li>Win three mini-boards in a row to win the game</li>
-                  <li>Your move determines where your opponent must play next</li>
-                  <li>If sent to a completed board, you may play anywhere on the grid</li>
-                  <li>Watch the timer - if it runs out, you lose your turn</li>
-                  <li>Try different AI difficulty levels in bot mode</li>
-                  <li>The "Impossible" difficulty is extremely challenging</li>
-                  <li>Use the settings menu to customize your game experience</li>
-                </ul>
-              </div>
-            </TabsContent>
-          </Tabs>
+          <div className="glass-card p-4 rounded-lg">
+            <h2 className="text-xl font-semibold mb-3">Game Instructions</h2>
+            <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
+              <li>Win three mini-boards in a row to win the game</li>
+              <li>Your move determines where your opponent must play next</li>
+              <li>If sent to a completed board, you may play anywhere on the grid</li>
+              <li>Watch the timer - if it runs out, you lose your turn</li>
+              <li>Try different AI difficulty levels in bot mode</li>
+              <li>The "Impossible" difficulty is extremely challenging</li>
+              <li>Use the settings menu to customize your game experience</li>
+            </ul>
+          </div>
         </div>
         
         {/* Right Column - Game Board */}
