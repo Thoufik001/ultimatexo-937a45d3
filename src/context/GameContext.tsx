@@ -1,7 +1,7 @@
+
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import { toast } from "sonner";
 import { useToast } from "@/components/ui/use-toast";
-import multiplayerService, { MultiplayerResponse } from '@/services/MultiplayerService';
 
 type Player = 'X' | 'O' | null;
 type Board = Array<Player>;
@@ -24,18 +24,7 @@ interface GameState {
   timerEnabled: boolean;
   playerSymbols: Record<string, string>;
   botMode: boolean;
-  difficulty: 'easy' | 'medium' | 'hard';
-  multiplayerMode: boolean;
-  playerName: string;
-  gameCode: string;
-  opponentName: string | null;
-  isHost: boolean;
-  isMyTurn: boolean;
-  playerReady: boolean;
-  opponentReady: boolean;
-  gameStarted: boolean;
-  syncStartTime: number | null;
-  waitingForSync: boolean;
+  difficulty: 'easy' | 'medium' | 'hard' | 'impossible'; // Added impossible difficulty
 }
 
 interface GameSettings {
@@ -43,14 +32,7 @@ interface GameSettings {
   timerEnabled: boolean;
   playerSymbols: Record<string, string>;
   botMode: boolean;
-  difficulty: 'easy' | 'medium' | 'hard';
-  multiplayerMode?: boolean;
-  playerName?: string;
-  playerReady?: boolean;
-  opponentReady?: boolean;
-  gameStarted?: boolean;
-  syncStartTime?: number;
-  waitingForSync?: boolean;
+  difficulty: 'easy' | 'medium' | 'hard' | 'impossible'; // Added impossible difficulty
 }
 
 type GameAction = 
@@ -68,14 +50,7 @@ type GameAction =
   | { type: 'HIDE_CONFETTI' }
   | { type: 'BOT_MOVE' }
   | { type: 'TOGGLE_BOT_MODE' }
-  | { type: 'UPDATE_SETTINGS'; settings: GameSettings }
-  | { type: 'OPPONENT_MOVE'; boardIndex: number; cellIndex: number }
-  | { type: 'CREATE_MULTIPLAYER_GAME'; gameCode: string; isHost: boolean }
-  | { type: 'JOIN_MULTIPLAYER_GAME'; gameCode: string; opponentName: string; isHost: boolean }
-  | { type: 'SET_OPPONENT_NAME'; name: string }
-  | { type: 'SET_MY_TURN'; isMyTurn: boolean }
-  | { type: 'SYNC_START_GAME'; timestamp: number }
-  | { type: 'SET_WAITING_SYNC'; waiting: boolean };
+  | { type: 'UPDATE_SETTINGS'; settings: GameSettings };
 
 interface GameContextType {
   state: GameState;
@@ -90,10 +65,6 @@ interface GameContextType {
   toggleSound: () => void;
   toggleBotMode: () => void;
   updateSettings: (settings: GameSettings) => void;
-  createMultiplayerGame: (gameCode: string) => void;
-  joinMultiplayerGame: (gameCode: string) => void;
-  syncStartMultiplayer: (timestamp: number) => void;
-  setWaitingForSync: (waiting: boolean) => void;
 }
 
 const initialBoard = Array(9).fill(null);
@@ -117,17 +88,6 @@ const initialState: GameState = {
   playerSymbols: { 'X': 'X', 'O': 'O' },
   botMode: false,
   difficulty: 'medium',
-  multiplayerMode: false,
-  playerName: '',
-  gameCode: '',
-  opponentName: null,
-  isHost: false,
-  isMyTurn: true,
-  playerReady: false,
-  opponentReady: false,
-  gameStarted: false,
-  syncStartTime: null,
-  waitingForSync: false
 };
 
 // Helper function to check if a player has won on a board
@@ -163,7 +123,7 @@ const playSound = (soundType: 'move' | 'win' | 'gameOver' | 'timeWarning', isMut
   // audio.play();
 };
 
-// Enhanced bot move logic with different difficulty levels
+// Significantly enhanced bot move logic with advanced strategies and impossible mode
 const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: number | null, difficulty: string): { boardIndex: number; cellIndex: number } => {
   // Find all valid boards to play on
   const validBoardIndices: number[] = [];
@@ -196,106 +156,195 @@ const getBotMove = (boards: Boards, boardStatus: BoardStatus, nextBoardIndex: nu
     return { boardIndex, cellIndex };
   }
   
-  // Medium and Hard mode strategies
-  if (difficulty === 'medium' || difficulty === 'hard') {
-    // Try to find a winning move in any valid board first
-    for (const bIndex of validBoardIndices) {
-      const winningMove = findWinningMove(boards[bIndex], 'O');
-      if (winningMove !== -1) {
-        boardIndex = bIndex;
-        cellIndex = winningMove;
-        break;
-      }
-    }
-    
-    // If no winning move, try to block opponent's winning move
-    if (cellIndex === -1) {
-      for (const bIndex of validBoardIndices) {
-        const blockingMove = findWinningMove(boards[bIndex], 'X');
-        if (blockingMove !== -1) {
-          boardIndex = bIndex;
-          cellIndex = blockingMove;
-          break;
-        }
-      }
+  // Medium, Hard, and Impossible mode strategies
+  // Look for winning moves on individual boards first
+  for (const bIndex of validBoardIndices) {
+    // Try to find a winning move for the bot first
+    const winningMove = findWinningMove(boards[bIndex], 'O');
+    if (winningMove !== -1) {
+      boardIndex = bIndex;
+      cellIndex = winningMove;
+      return { boardIndex, cellIndex };
     }
   }
   
-  // For Hard mode, add more advanced strategies
-  if (difficulty === 'hard' && cellIndex === -1) {
-    // Evaluate the best board to play on using minimax
+  // Block opponent's winning move
+  for (const bIndex of validBoardIndices) {
+    const blockingMove = findWinningMove(boards[bIndex], 'X');
+    if (blockingMove !== -1) {
+      boardIndex = bIndex;
+      cellIndex = blockingMove;
+      return { boardIndex, cellIndex };
+    }
+  }
+  
+  // For Hard and Impossible modes, use more advanced strategies
+  if (difficulty === 'hard' || difficulty === 'impossible') {
+    // Try to create a fork (two winning paths)
+    for (const bIndex of validBoardIndices) {
+      const forkMove = findForkMove(boards[bIndex], 'O');
+      if (forkMove !== -1) {
+        boardIndex = bIndex;
+        cellIndex = forkMove;
+        return { boardIndex, cellIndex };
+      }
+    }
+    
+    // Block opponent's fork
+    for (const bIndex of validBoardIndices) {
+      const blockForkMove = findForkMove(boards[bIndex], 'X');
+      if (blockForkMove !== -1) {
+        boardIndex = bIndex;
+        cellIndex = blockForkMove;
+        return { boardIndex, cellIndex };
+      }
+    }
+    
+    // Evaluate best board to play on
     if (validBoardIndices.length > 1) {
       boardIndex = findBestBoard(validBoardIndices, boards, boardStatus);
     }
     
-    // Find all empty cells on the selected board
-    const emptyCellIndices: number[] = [];
-    boards[boardIndex].forEach((cell, index) => {
-      if (cell === null) {
-        emptyCellIndices.push(index);
-      }
+    // First, check if we can play in center of the selected board
+    if (boards[boardIndex][4] === null) {
+      return { boardIndex, cellIndex: 4 };
+    }
+    
+    // Try corners next
+    const corners = [0, 2, 6, 8].filter(i => boards[boardIndex][i] === null);
+    if (corners.length > 0) {
+      return { boardIndex, cellIndex: corners[Math.floor(Math.random() * corners.length)] };
+    }
+    
+    // Try sides next
+    const sides = [1, 3, 5, 7].filter(i => boards[boardIndex][i] === null);
+    if (sides.length > 0) {
+      return { boardIndex, cellIndex: sides[Math.floor(Math.random() * sides.length)] };
+    }
+  }
+  
+  // Impossible mode: Use strategic move to force opponent into disadvantageous position
+  if (difficulty === 'impossible') {
+    // Look for strategic moves that send opponent to already won/full boards
+    // or that set up future winning opportunities
+    
+    // First, prioritize moves that send opponent to a board they can't win
+    const emptyCellsOnBoard = boards[boardIndex]
+      .map((cell, idx) => cell === null ? idx : -1)
+      .filter(idx => idx !== -1);
+    
+    // Find cells that would send opponent to a board where we have advantage
+    const strategicCells = emptyCellsOnBoard.filter(cell => {
+      // If the target board is already won or full, good strategic choice
+      if (boardStatus[cell] !== null) return true;
+      
+      // Count our pieces on the target board
+      const ourPieces = boards[cell].filter(c => c === 'O').length;
+      const theirPieces = boards[cell].filter(c => c === 'X').length;
+      
+      // If we have more pieces or can set up a winning move, it's strategic
+      return ourPieces > theirPieces;
     });
     
-    // Prefer center
-    if (emptyCellIndices.includes(4)) {
-      cellIndex = 4;
-    } 
-    // Then corners
-    else if (emptyCellIndices.some(i => [0, 2, 6, 8].includes(i))) {
-      const corners = emptyCellIndices.filter(i => [0, 2, 6, 8].includes(i));
-      cellIndex = corners[Math.floor(Math.random() * corners.length)];
-    } 
-    // Then edges
-    else {
-      const edges = emptyCellIndices.filter(i => [1, 3, 5, 7].includes(i));
-      cellIndex = edges[Math.floor(Math.random() * edges.length)];
+    if (strategicCells.length > 0) {
+      // Choose the most strategic cell
+      return { 
+        boardIndex, 
+        cellIndex: strategicCells[Math.floor(Math.random() * strategicCells.length)] 
+      };
     }
     
-    // Try to find a strategic cell that sends opponent to a won board or a full board
-    if (emptyCellIndices.length > 1) {
-      for (const cell of emptyCellIndices) {
-        if (boardStatus[cell] !== null) {
-          cellIndex = cell;
-          break;
-        }
+    // If we made it here, we need a deeper strategic analysis
+    // Consider all possible moves and evaluate which gives best position
+    let bestScore = -Infinity;
+    let bestCell = emptyCellsOnBoard[0];
+    
+    for (const cell of emptyCellsOnBoard) {
+      // Score based on various factors
+      let score = 0;
+      
+      // Prefer moves that send to boards where we already have pieces
+      const targetBoard = boards[cell];
+      const ourPieces = targetBoard.filter(c => c === 'O').length;
+      const theirPieces = targetBoard.filter(c => c === 'X').length;
+      
+      score += ourPieces * 2;
+      score -= theirPieces;
+      
+      // Prefer moves that don't give opponent a winning opportunity
+      if (findWinningMove(targetBoard, 'X') !== -1) {
+        score -= 5;
+      }
+      
+      // Prefer moves that might give us a winning opportunity
+      if (ourPieces >= 1 && targetBoard.filter(c => c === null).length > 5) {
+        score += 3;
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestCell = cell;
       }
     }
+    
+    return { boardIndex, cellIndex: bestCell };
   }
   
   // If no strategic move found, make a random move
-  if (cellIndex === -1) {
-    // Find all empty cells on the selected board
-    const emptyCellIndices: number[] = [];
-    boards[boardIndex].forEach((cell, index) => {
-      if (cell === null) {
-        emptyCellIndices.push(index);
-      }
-    });
-    
-    // Choose a random empty cell
-    cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
-  }
+  const emptyCellIndices: number[] = [];
+  boards[boardIndex].forEach((cell, index) => {
+    if (cell === null) {
+      emptyCellIndices.push(index);
+    }
+  });
   
+  // Choose a random empty cell
+  cellIndex = emptyCellIndices[Math.floor(Math.random() * emptyCellIndices.length)];
   return { boardIndex, cellIndex };
 };
 
-// Find the best board to play on using simple heuristic evaluation
+// Find the best board to play on using enhanced heuristic evaluation
 const findBestBoard = (validBoardIndices: number[], boards: Boards, boardStatus: BoardStatus): number => {
   let bestScore = -Infinity;
   let bestBoardIndex = validBoardIndices[0];
   
   for (const boardIndex of validBoardIndices) {
+    let score = 0;
+    
     // More empty cells is better (more options)
     const emptyCount = boards[boardIndex].filter(cell => cell === null).length;
+    score += emptyCount;
     
     // Having own cells already on the board is good
     const ownCellCount = boards[boardIndex].filter(cell => cell === 'O').length;
+    score += ownCellCount * 3;
     
     // Having opponent's cells on the board is bad
     const opponentCellCount = boards[boardIndex].filter(cell => cell === 'X').length;
+    score -= opponentCellCount * 2;
     
-    // Calculate a simple score
-    const score = emptyCount + (ownCellCount * 2) - opponentCellCount;
+    // Check for potential winning moves
+    if (findWinningMove(boards[boardIndex], 'O') !== -1) {
+      score += 10; // Big bonus for potential win
+    }
+    
+    // Check for potential blocking moves
+    if (findWinningMove(boards[boardIndex], 'X') !== -1) {
+      score += 8; // Bonus for blocking opponent
+    }
+    
+    // Check for potential fork opportunities
+    if (findForkMove(boards[boardIndex], 'O') !== -1) {
+      score += 9; // Bonus for fork opportunity
+    }
+    
+    // If we can create a move to send opponent to a won board, that's great
+    const emptyCells = boards[boardIndex].map((cell, idx) => cell === null ? idx : -1).filter(i => i !== -1);
+    for (const cell of emptyCells) {
+      if (boardStatus[cell] !== null) {
+        score += 5; // Bonus for sending to a completed board
+      }
+    }
     
     if (score > bestScore) {
       bestScore = score;
@@ -374,8 +423,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         state.gameStatus !== 'playing' ||
         (state.nextBoardIndex !== null && state.nextBoardIndex !== boardIndex) ||
         state.boardStatus[boardIndex] !== null ||
-        state.boards[boardIndex][cellIndex] !== null ||
-        (state.multiplayerMode && !state.isMyTurn)
+        state.boards[boardIndex][cellIndex] !== null
       ) {
         return state;
       }
@@ -418,11 +466,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         cellIndex
       });
       
-      // If in multiplayer mode, send move to opponent
-      if (state.multiplayerMode && state.gameCode) {
-        multiplayerService.makeMove(boardIndex, cellIndex);
-      }
-      
       const newState: GameState = {
         ...state,
         boards: newBoards,
@@ -435,7 +478,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         moveHistory: newHistory,
         currentMoveIndex: state.currentMoveIndex + 1,
         showConfetti: gameWinner !== null,
-        isMyTurn: state.multiplayerMode ? false : true // Toggle turn in multiplayer
       };
       
       playSound('move', state.isMuted);
@@ -448,7 +490,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         return state;
       }
       
-      // Get bot's move
+      // Get bot's move with enhanced AI
       const { boardIndex, cellIndex } = getBotMove(
         state.boards, 
         state.boardStatus, 
@@ -464,7 +506,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         gameStatus: 'playing',
-        waitingForSync: false,
         turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null
       };
     }
@@ -484,7 +525,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'UNDO': {
-      if (state.currentMoveIndex <= 0 || state.multiplayerMode) return state;
+      if (state.currentMoveIndex <= 0) return state;
       
       const prevMoveIndex = state.currentMoveIndex - 1;
       const prevMove = state.moveHistory[prevMoveIndex];
@@ -504,7 +545,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'REDO': {
-      if (state.currentMoveIndex >= state.moveHistory.length - 1 || state.multiplayerMode) return state;
+      if (state.currentMoveIndex >= state.moveHistory.length - 1) return state;
       
       const nextMoveIndex = state.currentMoveIndex + 1;
       const historicalMove = state.moveHistory[nextMoveIndex];
@@ -541,17 +582,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         playerSymbols: state.playerSymbols,
         botMode: state.botMode,
         difficulty: state.difficulty,
-        
-        // Keep multiplayer information if in multiplayer mode
-        multiplayerMode: state.multiplayerMode,
-        playerName: state.playerName,
-        gameCode: state.gameCode,
-        opponentName: state.opponentName,
-        isHost: state.isHost,
-        isMyTurn: state.multiplayerMode ? (state.isHost ? true : false) : true,
-        playerReady: false,
-        opponentReady: false,
-        gameStarted: false
       };
       
       // Reset all boards and game status
@@ -596,7 +626,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
     
     case 'TICK_TIMER': {
-      if (state.gameStatus !== 'playing' || !state.timerEnabled || state.turnTimeRemaining === null || state.turnTimeRemaining <= 0 || state.waitingForSync) {
+      if (state.gameStatus !== 'playing' || !state.timerEnabled || state.turnTimeRemaining === null || state.turnTimeRemaining <= 0) {
         return state;
       }
       
@@ -635,101 +665,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
     }
     
-    case 'OPPONENT_MOVE': {
-      const { boardIndex, cellIndex } = action;
-      
-      if (state.gameStatus !== 'playing' || !state.multiplayerMode) {
-        return state;
-      }
-      
-      const newBoards = state.boards.map((board, idx) => 
-        idx === boardIndex ? [...board] : board
-      );
-      newBoards[boardIndex][cellIndex] = state.currentPlayer;
-      
-      const boardWinner = checkWinner(newBoards[boardIndex]);
-      const newBoardStatus = [...state.boardStatus];
-      
-      if (boardWinner !== null) {
-        newBoardStatus[boardIndex] = boardWinner;
-        playSound('win', state.isMuted);
-      } else if (!newBoards[boardIndex].includes(null)) {
-        newBoardStatus[boardIndex] = null;
-      }
-      
-      let nextBoard = cellIndex;
-      if (newBoardStatus[nextBoard] !== null) {
-        nextBoard = null;
-      }
-      
-      const gameWinner = checkWinner(newBoardStatus);
-      const gameOver = gameWinner !== null || !newBoardStatus.includes(null);
-      
-      const newHistory = state.moveHistory.slice(0, state.currentMoveIndex + 1);
-      newHistory.push({
-        boards: state.boards,
-        boardStatus: state.boardStatus,
-        boardIndex,
-        cellIndex
-      });
-      
-      playSound('move', state.isMuted);
-      
-      return {
-        ...state,
-        boards: newBoards,
-        boardStatus: newBoardStatus,
-        currentPlayer: state.currentPlayer === 'X' ? 'O' : 'X',
-        nextBoardIndex: nextBoard,
-        gameStatus: gameOver ? 'game-over' : state.gameStatus,
-        winner: gameWinner,
-        turnTimeRemaining: state.timerEnabled ? state.turnTimeLimit : null,
-        moveHistory: newHistory,
-        currentMoveIndex: state.currentMoveIndex + 1,
-        showConfetti: gameWinner !== null,
-        isMyTurn: true // It's my turn again after opponent's move
-      };
-    }
-    
-    case 'CREATE_MULTIPLAYER_GAME': {
-      return {
-        ...state,
-        multiplayerMode: true,
-        botMode: false,
-        gameCode: action.gameCode,
-        isHost: action.isHost,
-        gameStatus: 'playing',
-        isMyTurn: action.isHost // Host plays first (X)
-      };
-    }
-    
-    case 'JOIN_MULTIPLAYER_GAME': {
-      return {
-        ...state,
-        multiplayerMode: true,
-        botMode: false,
-        gameCode: action.gameCode,
-        isHost: action.isHost,
-        opponentName: action.opponentName,
-        gameStatus: 'playing',
-        isMyTurn: !action.isHost // Guest plays second (O)
-      };
-    }
-    
-    case 'SET_OPPONENT_NAME': {
-      return {
-        ...state,
-        opponentName: action.name
-      };
-    }
-    
-    case 'SET_MY_TURN': {
-      return {
-        ...state,
-        isMyTurn: action.isMyTurn
-      };
-    }
-    
     case 'UPDATE_SETTINGS': {
       return {
         ...state,
@@ -738,32 +673,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         timerEnabled: action.settings.timerEnabled,
         playerSymbols: action.settings.playerSymbols,
         botMode: action.settings.botMode,
-        difficulty: action.settings.difficulty,
-        multiplayerMode: action.settings.multiplayerMode || state.multiplayerMode,
-        playerName: action.settings.playerName || state.playerName,
-        playerReady: action.settings.playerReady !== undefined ? action.settings.playerReady : state.playerReady,
-        opponentReady: action.settings.opponentReady !== undefined ? action.settings.opponentReady : state.opponentReady,
-        gameStarted: action.settings.gameStarted !== undefined ? action.settings.gameStarted : state.gameStarted,
-        syncStartTime: action.settings.syncStartTime !== undefined ? action.settings.syncStartTime : state.syncStartTime,
-        waitingForSync: action.settings.waitingForSync !== undefined ? action.settings.waitingForSync : state.waitingForSync
-      };
-    }
-    
-    case 'SYNC_START_GAME': {
-      return {
-        ...state,
-        syncStartTime: action.timestamp,
-        waitingForSync: true,
-        gameStatus: 'init', // Keep it as init until we actually start
-        playerReady: true,
-        opponentReady: true
-      };
-    }
-    
-    case 'SET_WAITING_SYNC': {
-      return {
-        ...state,
-        waitingForSync: action.waiting
+        difficulty: action.settings.difficulty
       };
     }
     
@@ -808,7 +718,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('ultimateXO', JSON.stringify(state));
   }, [state]);
 
-  // Bot move effect
+  // Bot move effect with slight delay for better UX
   useEffect(() => {
     if (state.botMode && state.gameStatus === 'playing' && state.currentPlayer === 'O') {
       // Add a small delay for better UX
@@ -820,14 +730,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state.botMode, state.gameStatus, state.currentPlayer]);
 
-  // Timer effect - Modified to handle multiplayer sync
+  // Timer effect
   useEffect(() => {
-    // Don't run timer if game is not in playing status, timer is not enabled,
-    // or we're waiting for sync in multiplayer mode
-    if (state.gameStatus !== 'playing' || 
-        !state.timerEnabled || 
-        state.turnTimeRemaining === null || 
-        state.waitingForSync) return;
+    if (state.gameStatus !== 'playing' || !state.timerEnabled || state.turnTimeRemaining === null) return;
 
     const timer = setInterval(() => {
       dispatch({ type: 'TICK_TIMER' });
@@ -851,7 +756,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return () => clearInterval(timer);
-  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled, state.currentPlayer, state.playerSymbols, state.waitingForSync]);
+  }, [state.gameStatus, state.turnTimeRemaining, state.timerEnabled, state.currentPlayer, state.playerSymbols]);
 
   // Game over notification
   useEffect(() => {
@@ -880,105 +785,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return () => clearTimeout(timer);
     }
   }, [state.showConfetti]);
-
-  // Multiplayer WebSocket connection and event handling
-  useEffect(() => {
-    if (state.multiplayerMode) {
-      const removeListener = multiplayerService.addListener((data: MultiplayerResponse) => {
-        console.log("Multiplayer event received:", data);
-        
-        switch (data.type) {
-          case 'game-created':
-            toast.success("Game created! Waiting for opponent to join.");
-            dispatch({
-              type: 'CREATE_MULTIPLAYER_GAME',
-              gameCode: data.gameId,
-              isHost: data.isHost
-            });
-            break;
-            
-          case 'game-joined':
-            toast.success(`${data.opponentName} joined the game!`);
-            dispatch({
-              type: 'JOIN_MULTIPLAYER_GAME',
-              gameCode: data.gameId,
-              opponentName: data.opponentName,
-              isHost: data.isHost
-            });
-            break;
-            
-          case 'opponent-joined':
-            toast.success(`${data.opponentName} joined the game!`);
-            dispatch({
-              type: 'SET_OPPONENT_NAME',
-              name: data.opponentName
-            });
-            break;
-            
-          case 'opponent-move':
-            dispatch({
-              type: 'OPPONENT_MOVE',
-              boardIndex: data.boardIndex,
-              cellIndex: data.cellIndex
-            });
-            break;
-            
-          case 'opponent-left':
-            toast.error("Your opponent has left the game.");
-            break;
-            
-          case 'error':
-            toast.error(`Error: ${data.message}`);
-            break;
-        }
-      });
-      
-      // Clean up the listener when unmounting
-      return () => {
-        removeListener();
-        multiplayerService.leaveGame();
-      };
-    }
-  }, [state.multiplayerMode]);
-  
-  // Add effect for synchronized game start
-  useEffect(() => {
-    if (state.waitingForSync && state.syncStartTime) {
-      const now = Date.now();
-      
-      if (now >= state.syncStartTime) {
-        // Time to start!
-        dispatch({ type: 'START_GAME' });
-        toast.success("Game started! Both players synced.");
-      } else {
-        // Set timeout for the exact moment to start
-        const delay = state.syncStartTime - now;
-        console.log(`Waiting ${delay}ms to start the game at ${new Date(state.syncStartTime).toLocaleTimeString()}`);
-        
-        const timer = setTimeout(() => {
-          dispatch({ type: 'START_GAME' });
-          toast.success("Game started! Both players synced.");
-        }, delay);
-        
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [state.waitingForSync, state.syncStartTime]);
-
-  // Listen for multiplayer game started event
-  useEffect(() => {
-    if (state.multiplayerMode) {
-      const handleGameStarted = (data: MultiplayerResponse) => {
-        if (data.type === 'game-started') {
-          dispatch({ type: 'SYNC_START_GAME', timestamp: data.timestamp });
-          toast.success("Game starting soon...");
-        }
-      };
-      
-      const unsubscribe = multiplayerService.addListener(handleGameStarted);
-      return () => unsubscribe();
-    }
-  }, [state.multiplayerMode]);
   
   // Convenience functions
   const makeMove = (boardIndex: number, cellIndex: number) => {
@@ -1025,22 +831,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'UPDATE_SETTINGS', settings });
   };
 
-  const createMultiplayerGame = (gameCode: string) => {
-    dispatch({ type: 'CREATE_MULTIPLAYER_GAME', gameCode, isHost: true });
-  };
-  
-  const joinMultiplayerGame = (gameCode: string) => {
-    dispatch({ type: 'JOIN_MULTIPLAYER_GAME', gameCode, opponentName: null, isHost: false });
-  };
-
-  const syncStartMultiplayer = (timestamp: number) => {
-    dispatch({ type: 'SYNC_START_GAME', timestamp });
-  };
-  
-  const setWaitingForSync = (waiting: boolean) => {
-    dispatch({ type: 'SET_WAITING_SYNC', waiting });
-  };
-
   const contextValue = {
     state,
     makeMove,
@@ -1053,11 +843,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     stopGame,
     toggleSound,
     toggleBotMode,
-    updateSettings,
-    createMultiplayerGame,
-    joinMultiplayerGame,
-    syncStartMultiplayer,
-    setWaitingForSync
+    updateSettings
   };
 
   return (
