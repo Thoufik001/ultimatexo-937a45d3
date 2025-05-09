@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GameProvider, useGame } from '@/context/GameContext';
 import { ThemeProvider } from '@/hooks/use-theme';
@@ -24,18 +25,21 @@ const Game: React.FC = () => {
 
   // Show/hide game over modal
   React.useEffect(() => {
+    // Always show modal when game status changes to game-over or paused
     if (state.gameStatus === 'game-over' || state.gameStatus === 'paused') {
       setShowModal(true);
     } else {
       setShowModal(false);
     }
   }, [state.gameStatus]);
+
   const handleCloseModal = () => {
     if (state.gameStatus === 'paused') {
       resumeGame();
     }
     setShowModal(false);
   };
+
   const handleOpenSettings = () => {
     setShowSettings(true);
   };
@@ -51,6 +55,7 @@ const Game: React.FC = () => {
   const handleRestartRequested = () => {
     setShowRestartDialog(true);
   };
+  
   return <>
       <div className="flex flex-col lg:flex-row gap-4 w-full max-w-7xl mx-auto">
         {/* Left Column - Controls and Info */}
