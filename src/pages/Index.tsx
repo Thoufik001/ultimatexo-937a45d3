@@ -136,7 +136,14 @@ const Index: React.FC = () => {
         <div className="min-h-screen flex flex-col p-4 bg-background">
           <header className="text-center my-6">
             <h1 className="text-3xl md:text-4xl font-poppins font-bold mb-2 text-gradient">UltimateXO</h1>
-            <p className="text-muted-foreground font-inter">Ultimate Strategy - Ultimate Challenge</p>
+            <a 
+              href="https://thoufik.framer.ai" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground font-inter hover:text-primary transition-colors underline"
+            >
+              Crafted by Thoufik
+            </a>
           </header>
           
           <main className="flex-grow">

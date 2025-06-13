@@ -8,11 +8,9 @@ import {
   RotateCcw, 
   Play, 
   Pause, 
-  Bot,
   RefreshCcw
 } from "lucide-react";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 
@@ -28,7 +26,6 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
     pauseGame, 
     resumeGame, 
     toggleBotMode,
-    updateSettings,
     restartGame
   } = useGame();
   
@@ -51,21 +48,6 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
   
   const toggleBot = () => {
     toggleBotMode();
-  };
-  
-  const handleDifficultyChange = (value: 'easy' | 'medium' | 'hard' | 'impossible') => {
-    updateSettings({
-      ...state,
-      difficulty: value,
-      turnTimeLimit: state.turnTimeLimit,
-      timerEnabled: state.timerEnabled,
-      playerSymbols: state.playerSymbols,
-      botMode: state.botMode
-    });
-    
-    if (value === 'impossible') {
-      toast.info("Impossible mode activated! Good luck beating this AI...");
-    }
   };
   
   const getActionButtonContent = () => {
@@ -150,31 +132,9 @@ const GameControls: React.FC<GameControlsProps> = ({ onOpenSettings, onRestart }
             <label htmlFor="bot-mode-control" className="text-sm font-medium cursor-pointer">Bot Mode</label>
           </div>
           <Badge variant={state.botMode ? "default" : "outline"} className="text-xs">
-            {state.botMode ? `Bot: ${state.difficulty}` : "Player vs Player"}
+            {state.botMode ? "vs Bot" : "Player vs Player"}
           </Badge>
         </div>
-        
-        {state.botMode && (
-          <div className="pt-1">
-            <Select 
-              value={state.difficulty} 
-              onValueChange={handleDifficultyChange}
-            >
-              <SelectTrigger className="w-full">
-                <div className="flex items-center">
-                  <Bot className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Select difficulty" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="easy">Easy (Random)</SelectItem>
-                <SelectItem value="medium">Medium (Basic Strategy)</SelectItem>
-                <SelectItem value="hard">Hard (Advanced Strategy)</SelectItem>
-                <SelectItem value="impossible">Impossible (Unbeatable)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </div>
       
       <div className="flex justify-between items-center text-sm pt-2">
